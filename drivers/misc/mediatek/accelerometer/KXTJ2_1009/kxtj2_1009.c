@@ -79,6 +79,7 @@ typedef enum {
     ADX_TRC_IOCTL   = 0x04,
     ADX_TRC_CALI	= 0X08,
     ADX_TRC_INFO	= 0X10,
+	ADX_TRC_LP		= 0x80,
 } ADX_TRC;
 /*----------------------------------------------------------------------------*/
 struct scale_factor{
@@ -513,6 +514,20 @@ static int KXTJ2_1009_CheckDeviceID(struct i2c_client *client)
 	}
 	
 	return KXTJ2_1009_SUCCESS;
+}
+/*----------------------------------------------------------------------------*/
+static void KXTJ2_1009_GetPowerMode(struct i2c_client *client)
+{
+	u8 databuf[2];
+	int res = 0;
+	u8 addr = KXTJ2_1009_REG_POWER_CTL;
+
+	if (hwmsen_read_block(client, addr, databuf, 0x01))	{
+		GSE_ERR("read power ctl register err!\n");
+	} else{
+		GSE_ERR("reg[0x%x] = 0x%x, bit[7] should be 0. (%c)\n",
+			KXTJ2_1009_REG_POWER_CTL, databuf[0], (databuf[0]&0x80) == 0x00?'O':'X');
+	}
 }
 /*----------------------------------------------------------------------------*/
 static int KXTJ2_1009_SetPowerMode(struct i2c_client *client, bool enable)
@@ -1783,6 +1798,7 @@ static int kxtj2_1009_suspend(struct i2c_client *client, pm_message_t msg)
 		if(0 != (err = KXTJ2_1009_SetPowerMode(obj->client, false)))
 		{
 			GSE_ERR("write power control fail!!\n");
+			mutex_unlock(&kxtj2_1009_mutex);
 			return -1;
 		}
         mutex_unlock(&kxtj2_1009_mutex);
@@ -1790,6 +1806,10 @@ static int kxtj2_1009_suspend(struct i2c_client *client, pm_message_t msg)
 		//sensor_power = false;      
 		KXTJ2_1009_power(obj->hw, 0);
 	}
+	if (atomic_read(&obj->trace) & ADX_TRC_LP) {
+		KXTJ2_1009_GetPowerMode(obj->client);
+	}
+
 	return err;
 }
 /*----------------------------------------------------------------------------*/
@@ -1806,10 +1826,14 @@ static int kxtj2_1009_resume(struct i2c_client *client)
 	}
 
 	KXTJ2_1009_power(obj->hw, 1);
+	if (atomic_read(&obj->trace) & ADX_TRC_LP) {
+		KXTJ2_1009_GetPowerMode(client);
+	}
     mutex_lock(&kxtj2_1009_mutex);
 	if(0 != (err = kxtj2_1009_init_client(client, 0)))
 	{
 		GSE_ERR("initialize client fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return err;        
 	}
 	atomic_set(&obj->suspend, 0);
@@ -1836,6 +1860,7 @@ static void kxtj2_1009_early_suspend(struct early_suspend *h)
 	if(err = KXTJ2_1009_SetPowerMode(obj->client, false))
 	{
 		GSE_ERR("write power control fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return;
 	}
 	mutex_unlock(&kxtj2_1009_mutex);
@@ -1862,6 +1887,7 @@ static void kxtj2_1009_late_resume(struct early_suspend *h)
 	if(err = kxtj2_1009_init_client(obj->client, 0))
 	{
 		GSE_ERR("initialize client fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return;        
 	}
 	atomic_set(&obj->suspend, 0); 

@@ -65,7 +65,7 @@ int it6121_i2c_read_byte(kal_uint8 dev_addr, kal_uint8 addr, kal_uint8 *returnDa
 
 #ifdef it6121_DEBUG
 	/* dump write_data for check */
-	printk("[KE/it6121_read_byte] dev_addr = 0x%x, read_data[0x%x] = 0x%x \n", dev_addr, addr, *returnData);
+	pr_debug("[KE/it6121_read_byte] dev_addr = 0x%x, read_data[0x%x] = 0x%x \n", dev_addr, addr, *returnData);
 #endif
 
 	mutex_lock(&it6121_i2c_access);
@@ -93,7 +93,7 @@ int it6121_i2c_read_byte(kal_uint8 dev_addr, kal_uint8 addr, kal_uint8 *returnDa
 	}
 	else
 	{
-		printk("[it6121_i2c_read_byte]error:  no this dev_addr! \n");
+		pr_debug("[it6121_i2c_read_byte]error:  no this dev_addr! \n");
 	}
 	
 	mutex_unlock(&it6121_i2c_access);
@@ -108,7 +108,7 @@ int it6121_i2c_write_byte(kal_uint8 dev_addr, kal_uint8 addr, kal_uint8 writeDat
 
 #ifdef it6121_DEBUG
   /* dump write_data for check */
-	printk("[KE/it6121_i2c_write] dev_addr = 0x%x, write_data[0x%x] = 0x%x \n", dev_addr, addr, writeData);
+	pr_debug("[KE/it6121_i2c_write] dev_addr = 0x%x, write_data[0x%x] = 0x%x \n", dev_addr, addr, writeData);
 #endif
   
 	mutex_lock(&it6121_i2c_access);
@@ -135,7 +135,7 @@ int it6121_i2c_write_byte(kal_uint8 dev_addr, kal_uint8 addr, kal_uint8 writeDat
 	}		
 	else
 	{
-		printk("[it6121_i2c_write_byte]error:  no this dev_addr! \n");
+		pr_debug("[it6121_i2c_write_byte]error:  no this dev_addr! \n");
 	}
 	
 	mutex_unlock(&it6121_i2c_access);
@@ -155,7 +155,7 @@ static int it6121_i2c_driver_probe(struct i2c_client *client, const struct i2c_d
 {
 	int err=0; 
 
-	printk("[it6121_i2c_driver_probe] start!\n");
+	pr_debug("[it6121_i2c_driver_probe] start!\n");
 
 	if(match_id(client, &it6121_i2c_id[0]))
 	{
@@ -171,13 +171,13 @@ static int it6121_i2c_driver_probe(struct i2c_client *client, const struct i2c_d
 	}	
 	else
 	{
-		printk("[it6121_i2c_driver_probe] error!\n");
+		pr_debug("[it6121_i2c_driver_probe] error!\n");
 
 		err = -EIO;
 		goto exit;
 	}
 
-	printk("[it6121_i2c_driver_probe] %s i2c sucess!\n", client->name);
+	pr_debug("[it6121_i2c_driver_probe] %s i2c sucess!\n", client->name);
 
 	return 0;
 
@@ -195,17 +195,17 @@ static struct i2c_board_info __initdata it6121_I2C[] =
 
 static int __init it6121_init(void)
 {    
-	printk("[it6121_init] init start\n");
+	pr_debug("[it6121_init] init start\n");
 
 	i2c_register_board_info(IT6121_BUSNUM, it6121_I2C, 1);
 
 	if(i2c_add_driver(&it6121_i2c_driver)!=0)
 	{
-		printk("[it6121_init] Failed to register it6121 i2c driver.\n");
+		pr_debug("[it6121_init] Failed to register it6121 i2c driver.\n");
 	}
 	else
 	{
-		printk("[it6121_init] Success to register it6121 i2c driver.\n");
+		pr_debug("[it6121_init] Success to register it6121 i2c driver.\n");
 	}
 
 	return 0;

@@ -62,6 +62,7 @@ st_cmd_head cmd_head;
 #define CMD_HEAD_LENGTH     (sizeof(st_cmd_head) - sizeof(u8*))
 static char procname[20] = {0};
 extern struct i2c_client *i2c_client_point;
+extern unsigned int touch_irq;
 static struct i2c_client *gt_client = NULL;
 
 #ifdef UPDATE_FUNCTIONS
@@ -142,7 +143,7 @@ static ssize_t  goodix_tool_upper_write(struct file *file, const char __user *bu
 
 static const struct file_operations gt_tool_fops = { 
     .write = goodix_tool_upper_write,
-    .read = goodix_tool_upper_read
+    .read = goodix_tool_upper_read,
 };
 
 static void tool_set_proc_name(char * procname)
@@ -305,16 +306,16 @@ s32 init_wr_node(struct i2c_client *client)
     {
         GTP_ERROR("create_proc_entry %s failed", procname);
         return -1;
-    }   
+	}
 #endif
 
-#if 1 // setting by hotknot feature 
+#if 1 /* setting by hotknot feature */
     if (misc_register(&hotknot_misc_device))
     {
-        printk("mtk_tpd: hotknot_device register failed\n");
+		pr_warn("mtk_tpd: hotknot_device register failed\n");
         return FAIL;
     }
-#endif  
+#endif
 
     return SUCCESS;
 }
@@ -513,7 +514,12 @@ static s32 goodix_tool_write(struct file *filp, const char __user *buff, unsigne
     }
     else if (7 == cmd_head.wr)//disable irq!
     {
-        mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+	#ifdef CONFIG_OF_TOUCH
+		disable_irq(touch_irq);
+	#else
+		mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+	#endif
+
     #if GTP_ESD_PROTECT
         gtp_esd_switch(i2c_client_point, SWITCH_OFF);
     #endif
@@ -521,7 +527,12 @@ static s32 goodix_tool_write(struct file *filp, const char __user *buff, unsigne
     }
     else if (9 == cmd_head.wr) //enable irq!
     {
-        mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+	#ifdef CONFIG_OF_TOUCH
+		enable_irq(touch_irq);
+	#else
+		mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+	#endif 
+
     #if GTP_ESD_PROTECT
         gtp_esd_switch(i2c_client_point, SWITCH_ON);
     #endif
@@ -567,7 +578,11 @@ static s32 goodix_tool_write(struct file *filp, const char __user *buff, unsigne
         show_len = 0;
         total_len = 0;
         memset(cmd_head.data, 0, cmd_head.data_len + 1);
-        memcpy(cmd_head.data, &buff[CMD_HEAD_LENGTH], cmd_head.data_len);
+        ret = copy_from_user(cmd_head.data, &buff[CMD_HEAD_LENGTH], cmd_head.data_len);
+        if (ret)
+        {
+            GTP_ERROR("copy_from_user failed.");
+        }
         GTP_DEBUG("update firmware, filename: %s", cmd_head.data);
         if (FAIL == gup_update_proc((void *)cmd_head.data))
         {
@@ -704,6 +719,7 @@ Output:
 ********************************************************/
 static s32 goodix_tool_read(char *page, char **start, off_t off, int count, int *eof, void *data)
 {
+    u64 ret = 0;
     GTP_DEBUG_FUNC();
 
     if(tpd_halt == 1||is_reseting == 1)
@@ -766,7 +782,12 @@ static s32 goodix_tool_read(char *page, char **start, off_t off, int count, int 
                 return FAIL;
             }
 
-            memcpy(&page[loc], &cmd_head.data[GTP_ADDR_LENGTH], len);
+            ret = copy_to_user(&page[loc], &cmd_head.data[GTP_ADDR_LENGTH], len);
+            if (ret)
+            {
+                GTP_ERROR("copy_from_user failed.");
+                return FAIL;                
+            }
             loc += len;
 
             GTP_DEBUG_ARRAY(&cmd_head.data[GTP_ADDR_LENGTH], len);
@@ -801,7 +822,12 @@ static s32 goodix_tool_read(char *page, char **start, off_t off, int count, int 
         // memcpy(page, GTP_DRIVER_VERSION, strlen(GTP_DRIVER_VERSION));
         s32 tmp_len;
         tmp_len = strlen(GTP_DRIVER_VERSION);
-        memcpy(page, GTP_DRIVER_VERSION, tmp_len);
+        ret = copy_to_user(page, GTP_DRIVER_VERSION, tmp_len);
+        if (ret)
+        {
+            GTP_ERROR("copy_from_user failed.");
+            return FAIL;                
+        }
         page[tmp_len] = 0;
     }
 

@@ -2065,14 +2065,14 @@ static int epl2182_i2c_probe(struct i2c_client *client, const struct i2c_device_
 	}
 
 
-	err = batch_register_support_info(ID_LIGHT,als_ctl.is_support_batch, 100, 0);
+	err = batch_register_support_info(ID_LIGHT,als_ctl.is_support_batch, 1, 0);
 	if(err)
 	{
 		APS_ERR("register light batch support err = %d\n", err);
 		goto exit_sensor_obj_attach_fail;
 	}
 	
-	err = batch_register_support_info(ID_PROXIMITY,ps_ctl.is_support_batch, 100, 0);
+	err = batch_register_support_info(ID_PROXIMITY,ps_ctl.is_support_batch, 1, 0);
 	if(err)
 	{
 		APS_ERR("register proximity batch support err = %d\n", err);

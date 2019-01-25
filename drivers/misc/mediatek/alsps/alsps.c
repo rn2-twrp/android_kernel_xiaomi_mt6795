@@ -829,7 +829,6 @@ static int alsps_real_driver_init(void)
 	    {
 	      obj->platform_diver_addr = &als_ps_driver;
 	      alsps_init_list[i] = obj;
-		  printk("%s, %d \n", __func__, __LINE__);
 		  break;
 	    }
 	}
@@ -860,8 +859,9 @@ int ps_report_interrupt_data(int value)
             cancel_work_sync(&cxt->report_ps);
         }
     }
-    
-	ps_data_report(cxt->idev,value,3);
+
+    if (cxt->is_ps_batch_enable == false)
+        ps_data_report(cxt->idev,value,3);
 	
 	return 0;
 }
@@ -1158,7 +1158,7 @@ static int alsps_probe(struct platform_device *pdev)
 		goto exit_alloc_input_dev_failed;
 	}
 
-#if defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_EARLYSUSPEND)
     atomic_set(&(alsps_context_obj->early_suspend), 0);
 	alsps_context_obj->early_drv.level    = EARLY_SUSPEND_LEVEL_STOP_DRAWING - 1,
 	alsps_context_obj->early_drv.suspend  = alsps_early_suspend,
@@ -1260,9 +1260,7 @@ static int __init alsps_init(void)
 	{
 		ALSPS_ERR("failed to register alsps driver\n");
 		return -ENODEV;
-	}else{
-	printk("%s, %d, \n", __func__, __LINE__);
-}
+	}
 	
 	return 0;
 }

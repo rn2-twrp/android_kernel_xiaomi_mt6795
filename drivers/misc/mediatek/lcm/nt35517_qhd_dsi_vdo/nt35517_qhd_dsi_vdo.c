@@ -561,8 +561,8 @@ static unsigned int lcm_compare_id(void)
 		first_inited = 1;
 	}
 	#ifndef BUILD_LK
-	printk("<0>nt35517: lcd_id2_pin=%d,lcd_id1_pin=%d\n",lcd_id2_pin,lcd_id1_pin);
-	printk("<0> 2222222222222222222222222222222222\n");
+	pr_debug("<0>nt35517: lcd_id2_pin=%d,lcd_id1_pin=%d\n",lcd_id2_pin,lcd_id1_pin);
+	pr_debug("<0> 2222222222222222222222222222222222\n");
 	#endif
 	  if (lcd_id2_pin == 1) 
 	    return 1;

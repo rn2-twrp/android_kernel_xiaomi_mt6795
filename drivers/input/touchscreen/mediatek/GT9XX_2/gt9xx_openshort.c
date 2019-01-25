@@ -1839,7 +1839,7 @@ static u32 gtp_raw_test(u16 *raw_buf, u32 check_types)
             gtp_key_min_test(raw_buf);
         }
     }
-    if (check_types & _UNIFORMITY_TEST)     // 20130814, for acer
+    if (check_types & _UNIFORMITY_TEST)     // 20130814, for 
     {
         gtp_uniformity_test(raw_buf);
     }

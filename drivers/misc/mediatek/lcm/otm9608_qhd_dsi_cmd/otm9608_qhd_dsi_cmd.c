@@ -80,7 +80,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
     {0x00,1,	{0xC0}},                                                                                                                                                                     
     {0xB3,1,	{0x09}},//SRAM Setting                                                                                                                                                       
     {0x00,1,	{0x80}},                                                                                                                                                                     
-    {0xC0,9,	{0x00, 0x48, 0x00, 0x10, 0x10, 0x00, 0x47, 0x10, 0x10}},//TCON Setting Parameters                                                                                            
+    {0xC0,9,	{0x00, 0x4C, 0x00, 0x10, 0x10, 0x00, 0x47, 0x10, 0x10}},//TCON Setting Parameters                                                                                            
     {0x00,1,	{0x92}},                                                                                                                                                                     
     {0xC0,4,	{0x00, 0x10, 0x00, 0x13}},//Panel Timing Setting Parameter                                                                                                                   
     {0x00,1,	{0xA2}},                                                                                                                                                                     
@@ -126,10 +126,10 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
     {0x00,1,	{0x81}},                                                                                                                                                                     
     {0xD6,1,	{0x00}},//Sharpness Off                                                                                                                                                      
     {0x00,1,	{0x00}},                                                                                                                                                                     
-    {0xE1,16,   {0x01, 0x0D, 0x13, 0x0F, 0x07, 0x11, 0x0B, 0x0A, 0x03, 0x06, 0x0B, 0x08, 0x0D, 0x0E, 0x09, 0x01}},                                                                           
+    {0xE1,16,   {0x01, 0x07, 0x0B, 0x0C, 0x05, 0x0D, 0x0A, 0x08, 0x06, 0x08, 0x0D, 0x06, 0x0D, 0x16, 0x10, 0x01}},                                                                           
     {0x00,1,	{0x00}},                                                                                                                                                                     
-    {0xE2,17,   {0x02, 0x0F, 0x15, 0x0E, 0x08, 0x10, 0x0B, 0x0C, 0x02, 0x04, 0x0B, 0x04, 0x0E, 0x0D, 0x08, 0x00}},                                                                           
-    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xE2,16,   {0x02, 0x06, 0x0A, 0x0D, 0x05, 0x0C, 0x09, 0x08, 0x05, 0x08, 0x0E, 0x07, 0x0D, 0x16, 0x10, 0x00}},                                                                           
+    {0x00,1,	{0x80}},                                                                                                                                                                    
     {0xCB,10,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                                                    
     {0x00,1,	{0x90}},                                                                                                                                                                     
     {0xCB,15,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
@@ -181,14 +181,12 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
     {0xCF,10,   {0x02, 0x02, 0x20, 0x20, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02}},//GOA ECLK Setting and GOA Other Options1 and GOA Signal Toggle Option Setting                                 
     {0x00,1,	{0x00}},                                                                                                                                                                     
     {0xD8,2,	{/*{0xA7, 0xA7}*/0x67,0x67}},// GVDD=5.2V, NGVDD=-5.2V                                                                                                                       
-	
-	
-	 
-	  {0x11,0,{}},
-	  {REGFLAG_DELAY, 120, {}},
-		{0x35,1,{0}},
-	  {0x29,0,{}},
-	   {REGFLAG_DELAY, 40, {}},
+
+    {0x11,0,{}},
+    {REGFLAG_DELAY, 120, {}},
+    {0x35,1,{0}},
+    {0x29,0,{}},
+    {REGFLAG_DELAY, 40, {}},
 
 
 	// Note
@@ -196,35 +194,6 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 
 
 	// Setting ending by predefined flag
-	{REGFLAG_END_OF_TABLE, 0x00, {}}
-};
-static struct LCM_setting_table lcm_sleep_out_setting[] = {
-    // Sleep Out
-	{0x11, 1, {0x00}},
-    {REGFLAG_DELAY, 20, {}},
-
-    // Display ON
-	{0x29, 1, {0x00}},
-	{REGFLAG_DELAY, 120, {}},
-	{REGFLAG_END_OF_TABLE, 0x00, {}}
-};
-
-
-static struct LCM_setting_table lcm_sleep_mode_in_setting[] = {
-	// Display off sequence
-	{0x28, 1, {0x00}},
-	{REGFLAG_DELAY, 200, {}},
-
-    // Sleep Mode On
-	{0x10, 1, {0x00}},
-	{REGFLAG_DELAY, 120, {}},
-	{REGFLAG_END_OF_TABLE, 0x00, {}}
-};
-static struct LCM_setting_table lcm_compare_id_setting[] = {
-	// Display off sequence
-	{0xF0,	5,	{0x55, 0xaa, 0x52,0x08,0x00}},
-	{REGFLAG_DELAY, 10, {}},
-
 	{REGFLAG_END_OF_TABLE, 0x00, {}}
 };
 
@@ -248,17 +217,12 @@ void push_table(struct LCM_setting_table *table, unsigned int count, unsigned ch
 				
             default:
 				dsi_set_cmdq_V2(cmd, table[i].count, table[i].para_list, force_update);
-				MDELAY(2);
        	}
     }
 	
 }
 
 
-static void init_lcm_registers(void)
-{
-	unsigned int data_array[16];
-}
 // ---------------------------------------------------------------------------
 //  LCM Driver Implementations
 // ---------------------------------------------------------------------------
@@ -271,87 +235,84 @@ static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
 
 static void lcm_get_params(LCM_PARAMS *params)
 {
-		memset(params, 0, sizeof(LCM_PARAMS));
-	
-		params->type   = LCM_TYPE_DSI;
+	memset(params, 0, sizeof(LCM_PARAMS));
 
-		params->width  = FRAME_WIDTH;
-		params->height = FRAME_HEIGHT;
+	params->type   = LCM_TYPE_DSI;
 
-		// enable tearing-free
-		params->dbi.te_mode 				= LCM_DBI_TE_MODE_VSYNC_ONLY;
-		params->dbi.te_edge_polarity		= LCM_POLARITY_RISING;
+	params->width  = FRAME_WIDTH;
+	params->height = FRAME_HEIGHT;
+
+	// enable tearing-free
+	params->dbi.te_mode 				= LCM_DBI_TE_MODE_VSYNC_ONLY;
+	params->dbi.te_edge_polarity		= LCM_POLARITY_RISING;
 
 #if defined(LCM_DSI_CMD_MODE)
-		params->dsi.mode   = CMD_MODE;
+	params->dsi.mode   = CMD_MODE;
 #else
-		params->dsi.mode   = SYNC_PULSE_VDO_MODE;
+	params->dsi.mode   = SYNC_PULSE_VDO_MODE;
 #endif
 	
-		// DSI
-		/* Command mode setting */
-		params->dsi.LANE_NUM				= LCM_TWO_LANE;
-		//The following defined the fomat for data coming from LCD engine.
-		params->dsi.data_format.color_order = LCM_COLOR_ORDER_RGB;
-		params->dsi.data_format.trans_seq   = LCM_DSI_TRANS_SEQ_MSB_FIRST;
-		params->dsi.data_format.padding     = LCM_DSI_PADDING_ON_LSB;
-		params->dsi.data_format.format      = LCM_DSI_FORMAT_RGB888;
+	// DSI
+	/* Command mode setting */
+	params->dsi.LANE_NUM				= LCM_TWO_LANE;
+	//The following defined the fomat for data coming from LCD engine.
+	params->dsi.data_format.color_order = LCM_COLOR_ORDER_RGB;
+	params->dsi.data_format.trans_seq   = LCM_DSI_TRANS_SEQ_MSB_FIRST;
+	params->dsi.data_format.padding     = LCM_DSI_PADDING_ON_LSB;
+	params->dsi.data_format.format      = LCM_DSI_FORMAT_RGB888;
 
-		// Highly depends on LCD driver capability.
-		// Not support in MT6573
+	// Highly depends on LCD driver capability.
+	// Not support in MT6573
 
-			params->dsi.DSI_WMEM_CONTI=0x3C; 
-			params->dsi.DSI_RMEM_CONTI=0x3E; 
+	params->dsi.DSI_WMEM_CONTI=0x3C; 
+	params->dsi.DSI_RMEM_CONTI=0x3E; 
 
 		
-		params->dsi.packet_size=256;
+	params->dsi.packet_size=256;
 
-		// Video mode setting		
-		params->dsi.intermediat_buffer_num = 2;
+	// Video mode setting		
+	params->dsi.intermediat_buffer_num = 2;
 
-		params->dsi.PS=LCM_PACKED_PS_24BIT_RGB888;
+	params->dsi.PS=LCM_PACKED_PS_24BIT_RGB888;
 
-		params->dsi.vertical_sync_active				= 3;
-		params->dsi.vertical_backporch					= 12;
-		params->dsi.vertical_frontporch					= 2;
-		params->dsi.vertical_active_line				= FRAME_HEIGHT;
+	params->dsi.vertical_sync_active				= 3;
+	params->dsi.vertical_backporch					= 12;
+	params->dsi.vertical_frontporch					= 2;
+	params->dsi.vertical_active_line				= FRAME_HEIGHT;
 
-		params->dsi.horizontal_sync_active				= 10;
-		params->dsi.horizontal_backporch				= 50;
-		params->dsi.horizontal_frontporch				= 50;
-		params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
+	params->dsi.horizontal_sync_active				= 10;
+	params->dsi.horizontal_backporch				= 50;
+	params->dsi.horizontal_frontporch				= 50;
+	params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
 
-		// Bit rate calculation
-		params->dsi.PLL_CLOCK				= 260;
+	// Bit rate calculation
+	params->dsi.PLL_CLOCK				= 260;
 
 	params->dsi.clk_lp_per_line_enable = 0;
-	params->dsi.esd_check_enable = 0;
-	params->dsi.customization_esd_check_enable = 0;
-	params->dsi.lcm_esd_check_table[0].cmd          = 0x53;
+	params->dsi.esd_check_enable = 1;
+	params->dsi.customization_esd_check_enable = 1;
+	params->dsi.lcm_esd_check_table[0].cmd          = 0x0A;
 	params->dsi.lcm_esd_check_table[0].count        = 1;
-	params->dsi.lcm_esd_check_table[0].para_list[0] = 0x24;
+	params->dsi.lcm_esd_check_table[0].para_list[0] = 0x9C;
 }
 
 static unsigned int lcm_compare_id(void)
 {
+	int   array[4];
+	char  buffer[3];
+	char  id0=0;
+	char  id1=0;
+	char  id2=0;
 
-		int   array[4];
-		char  buffer[3];
-		char  id0=0;
-		char  id1=0;
-		char  id2=0;
-
-
-		SET_RESET_PIN(0);
-		MDELAY(200);
-		SET_RESET_PIN(1);
-		MDELAY(200);
+	SET_RESET_PIN(0);
+	MDELAY(200);
+	SET_RESET_PIN(1);
+	MDELAY(200);
 		
 	array[0] = 0x00033700;// read id return two byte,version and id
 	dsi_set_cmdq(array, 1, 1);
 
-	read_reg_v2(0xDA,buffer, 1);
-
+	read_reg_v2(0xDA,buffer, 1); 
 	
 	array[0] = 0x00033700;// read id return two byte,version and id
 	dsi_set_cmdq(array, 1, 1);
@@ -365,73 +326,55 @@ static unsigned int lcm_compare_id(void)
 	id0 = buffer[0]; //should be 0x00
 	id1 = buffer[1];//should be 0xaa
 	id2 = buffer[2];//should be 0x55
-	#ifdef BUILD_LK
-		printf("zhibin uboot %s\n", __func__);
-		printf("%s, id0 = 0x%08x\n", __func__, id0);//should be 0x00
-		printf("%s, id1 = 0x%08x\n", __func__, id1);//should be 0xaa
-		printf("%s, id2 = 0x%08x\n", __func__, id2);//should be 0x55
-	#else
-		//printk("zhibin kernel %s\n", __func__);	
-	#endif
+#ifdef BUILD_LK
+	printf("%s, id0 = 0x%08x\n", __func__, id0);//should be 0x00
+	printf("%s, id1 = 0x%08x\n", __func__, id1);//should be 0xaa
+	printf("%s, id2 = 0x%08x\n", __func__, id2);//should be 0x55
+#endif
 	
 	return 1;
-
-
 }
 
 static void lcm_init(void)
 {
-
-	SET_RESET_PIN(0);
-    MDELAY(200);
+    SET_RESET_PIN(0);
+    MDELAY(10);
     SET_RESET_PIN(1);
-    MDELAY(200);
-	//lcm_compare_id();
+    MDELAY(10);
 
     push_table(lcm_initialization_setting, sizeof(lcm_initialization_setting) / sizeof(struct LCM_setting_table), 1);
-	
 }
 
 
 
 static void lcm_suspend(void)
 {
-		//push_table(lcm_sleep_mode_in_setting, sizeof(lcm_sleep_mode_in_setting) / sizeof(struct LCM_setting_table), 1);
-		//SET_RESET_PIN(0);
-		//MDELAY(1);
-		//SET_RESET_PIN(1);
-			unsigned int data_array[2];
-#if 1
-		//data_array[0] = 0x00000504; // Display Off
-		//dsi_set_cmdq(&data_array, 1, 1);
-		//MDELAY(100); 
-		data_array[0] = 0x00280500; // Display Off
-		dsi_set_cmdq(&data_array, 1, 1);
-		MDELAY(10); 
-		data_array[0] = 0x00100500; // Sleep In
-		dsi_set_cmdq(&data_array, 1, 1);
-		MDELAY(100);
-#endif
-#ifdef BUILD_LK
-		printf("zhibin uboot %s\n", __func__);
-#else
-		printk("zhibin kernel %s\n", __func__);
-#endif
+	unsigned int data_array[2];
 
+	data_array[0] = 0x00280500; // Display Off
+	dsi_set_cmdq(data_array, 1, 1);
+	MDELAY(10); 
+	data_array[0] = 0x00100500; // Sleep In
+	dsi_set_cmdq(data_array, 1, 1);
+	MDELAY(100);
+
+#ifdef BUILD_LK
+	printf("uboot %s\n", __func__);
+#else
+	pr_debug("kernel %s\n", __func__);
+#endif
 }
 
 
 static void lcm_resume(void)
 {
-		//lcm_init();	
 #ifdef BUILD_LK
-		printf("zhibin uboot %s\n", __func__);
+	printf("uboot %s\n", __func__);
 #else
-		printk("zhibin kernel %s\n", __func__);
-	
+	pr_debug("kernel %s\n", __func__);
 #endif
-		push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
-
+//	push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
+	lcm_init();
 }
 
 
@@ -455,9 +398,9 @@ static void lcm_update(unsigned int x, unsigned int y,
 	unsigned int data_array[16];
 	
 #ifdef BUILD_LK
-		printf("zhibin uboot %s\n", __func__);
+	printf("uboot %s\n", __func__);
 #else
-		printk("zhibin kernel %s\n", __func__);	
+	pr_debug("kernel %s\n", __func__);	
 #endif
 
 	data_array[0]= 0x00053902;
@@ -468,7 +411,7 @@ static void lcm_update(unsigned int x, unsigned int y,
 	data_array[5]= (y1_LSB);
 	data_array[6]= 0x002c3909;
 
-	dsi_set_cmdq(&data_array, 7, 0);
+	dsi_set_cmdq(data_array, 7, 0);
 
 }
 

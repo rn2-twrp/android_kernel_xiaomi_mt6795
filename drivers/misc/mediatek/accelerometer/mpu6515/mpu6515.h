@@ -8,7 +8,7 @@
 
 /* MPU6515 Register Map  (Please refer to MPU6515 Specifications) */
 #define MPU6515_REG_DEVID			0x75
-#define	MPU6515_REG_BW_RATE			0x1A
+#define	MPU6515_REG_BW_RATE			0x1D
 #define MPU6515_REG_POWER_CTL       0x6B
 #define MPU6515_REG_POWER_CTL2      0x6C
 #define MPU6515_REG_INT_ENABLE		0x38

@@ -2078,6 +2078,7 @@ static int kxtj2_1009_suspend(struct i2c_client *client, pm_message_t msg)
 #endif
 		{
 			GSE_ERR("write power control fail!!\n");
+			mutex_unlock(&kxtj2_1009_mutex);
 			return -1;
 		}
         mutex_unlock(&kxtj2_1009_mutex);
@@ -2113,6 +2114,7 @@ static int kxtj2_1009_resume(struct i2c_client *client)
 #endif
 	{
 		GSE_ERR("initialize client fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return err;        
 	}
 	atomic_set(&obj->suspend, 0);
@@ -2143,6 +2145,7 @@ static void kxtj2_1009_early_suspend(struct early_suspend *h)
 #endif
 	{
 		GSE_ERR("write power control fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return;
 	}
 	mutex_unlock(&kxtj2_1009_mutex);
@@ -2176,6 +2179,7 @@ static void kxtj2_1009_late_resume(struct early_suspend *h)
 #endif
 	{
 		GSE_ERR("initialize client fail!!\n");
+		mutex_unlock(&kxtj2_1009_mutex);
 		return;        
 	}
 	atomic_set(&obj->suspend, 0); 
@@ -2364,9 +2368,9 @@ static int kxtj2_1009_get_data(int* x ,int* y,int* z, int* status)
 		}
 
 		//sscanf(buff, "%x %x %x", req.get_data_rsp.int16_Data[0], req.get_data_rsp.int16_Data[1], req.get_data_rsp.int16_Data[2]);
-		*x = req.get_data_rsp.int16_Data[0];
-		*y = req.get_data_rsp.int16_Data[1];
-		*z = req.get_data_rsp.int16_Data[2];
+		*x = (int)req.get_data_rsp.int16_Data[0]*GRAVITY_EARTH_1000/1000;
+		*y = (int)req.get_data_rsp.int16_Data[1]*GRAVITY_EARTH_1000/1000;
+		*z = (int)req.get_data_rsp.int16_Data[2]*GRAVITY_EARTH_1000/1000;
 		GSE_ERR("x = %d, y = %d, z = %d\n", *x, *y, *z);
 		*status = SENSOR_STATUS_ACCURACY_MEDIUM;
 
@@ -2489,7 +2493,7 @@ static int kxtj2_1009_i2c_probe(struct i2c_client *client, const struct i2c_devi
 	 	GSE_ERR("register acc data path err\n");
 		goto exit_create_attr_failed;
 	}
-	err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 1000, 0);
+	err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 102, 0); //divisor is 1000/9.8
     if(err)
     {
         GSE_ERR("register gsensor batch support err = %d\n", err);

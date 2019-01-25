@@ -7,6 +7,14 @@
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
 
+extern unsigned long * sleep_aee_rec_cpu_dormant_va;
+
+#define DORMANT_LOG(cpu,pattern) do {				\
+	if (sleep_aee_rec_cpu_dormant_va != 0) {		\
+		sleep_aee_rec_cpu_dormant_va[cpu] = pattern;	\
+	}							\
+} while(0)
+
 extern int __cpu_suspend(unsigned long, int (*)(unsigned long));
 extern void cpu_resume_mmu(void);
 
@@ -83,7 +91,9 @@ void __cpu_suspend_save(u32 *ptr, u32 ptrsz, u32 sp, u32 *save_ptr)
 int cpu_suspend(unsigned long arg, int (*fn)(unsigned long))
 {
 	struct mm_struct *mm = current->active_mm;
-	int ret;
+	int ret, cpu = smp_processor_id();
+
+	DORMANT_LOG(cpu, 0x201);
 
 	if (!idmap_pgd)
 		return -EINVAL;

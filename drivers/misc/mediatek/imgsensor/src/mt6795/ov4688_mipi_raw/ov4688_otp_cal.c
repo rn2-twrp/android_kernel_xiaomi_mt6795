@@ -28,7 +28,7 @@ extern int iReadReg(u16 a_u2Addr , u8 * a_puBuff , u16 i2cId);
 extern int iWriteReg(u16 a_u2Addr , u32 a_u4Data , u32 a_u4Bytes , u16 i2cId);
 
 #define PFX "ov4688_OTP"
-#define LOG_INF(format, args...)	//xlog_printk(ANDROID_LOG_INFO   , PFX, "[%s] " format, __FUNCTION__, ##args)
+#define LOG_INF(format, args...)	//pr_debug(PFX "[%s] " format, __FUNCTION__, ##args)
 
 
 #define Delay(ms)  mdelay(ms)

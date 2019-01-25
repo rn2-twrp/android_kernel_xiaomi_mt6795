@@ -275,6 +275,7 @@ static int mtk_pcm_fmtx_hw_params(struct snd_pcm_substream *substream,
         //substream->runtime->dma_bytes = AFE_INTERNAL_SRAM_SIZE;
         substream->runtime->dma_area = (unsigned char *)Get_Afe_SramBase_Pointer();
         substream->runtime->dma_addr = AFE_INTERNAL_SRAM_PHY_BASE;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,false);
         AudDrv_Allocate_DL1_Buffer(mDev, substream->runtime->dma_bytes);
     }
     else
@@ -282,6 +283,7 @@ static int mtk_pcm_fmtx_hw_params(struct snd_pcm_substream *substream,
         substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
         substream->runtime->dma_area = FMTX_Playback_dma_buf->area;
         substream->runtime->dma_addr = FMTX_Playback_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,true);
         SetFMTXBuffer(substream, hw_params);
     }
     // -------------------------------------------------------
@@ -515,12 +517,11 @@ static int mtk_pcm_fmtx_start(struct snd_pcm_substream *substream)
     Set2ndI2SOutAttribute(runtime->rate) ;
     Set2ndI2SOutEnable(true);
 
-    SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_DL1, true);
-
     // here to set interrupt
     SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ1_MCU_MODE, (runtime->period_size * 2 / 3));
     SetIrqMcuSampleRate(Soc_Aud_IRQ_MCU_MODE_IRQ1_MCU_MODE, runtime->rate);
     SetIrqEnable(Soc_Aud_IRQ_MCU_MODE_IRQ1_MCU_MODE, true);
+    SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_DL1, true);
 
     EnableAfe(true);
 

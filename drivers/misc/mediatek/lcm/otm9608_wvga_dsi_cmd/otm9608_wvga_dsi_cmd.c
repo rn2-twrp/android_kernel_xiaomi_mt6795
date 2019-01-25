@@ -1,5 +1,5 @@
+#ifndef BUILD_LK
 #include <linux/string.h>
-#ifndef BUILD_UBOOT
 #include <linux/kernel.h>
 #endif
 #include "lcm_drv.h"
@@ -8,8 +8,8 @@
 //  Local Constants
 // ---------------------------------------------------------------------------
 
-#define FRAME_WIDTH  (540)
-#define FRAME_HEIGHT (960)
+#define FRAME_WIDTH  (480)
+#define FRAME_HEIGHT (800)
 
 // ---------------------------------------------------------------------------
 //  Local Variables
@@ -21,8 +21,8 @@ static LCM_UTIL_FUNCS lcm_util = {0};
 
 #define UDELAY(n) (lcm_util.udelay(n))
 #define MDELAY(n) (lcm_util.mdelay(n))
-#define REGFLAG_DELAY             							0XFE
-#define REGFLAG_END_OF_TABLE      							0x00   // END OF REGISTERS MARKER
+#define REGFLAG_DELAY             							0XFD
+#define REGFLAG_END_OF_TABLE      							0xFE   // END OF REGISTERS MARKER
 
 
 // ---------------------------------------------------------------------------
@@ -69,20 +69,124 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	{REGFLAG_END_OF_TABLE, 0x00, {}}
 	*/
 
-	
-	
-	 
-	  {0x11,0,{}},
-	  {REGFLAG_DELAY, 200, {}},
-		{0x35,1,{0}},
-		// CABC start
-		{0x51,1,{0xFF}},
-		{0x53,1,{0x2C}},
-		{0x55,1,{0x1}},
-		{0x5E,1,{0x3F}},
-		//CABC  end
-	  {0x29,0,{}},
-	   {REGFLAG_DELAY, 100, {}},
+    {0x00,	1,	{0x00}},
+    {0xFF,3,	{0x96, 0x08, 0x01}},// Enable cmd                                                                                                                                            
+    {0x00,1,	{0x80}},	                                                                                                                                                                  
+    {0xFF,2,	{0x96, 0x08}},// Enable cmd                                                                                                                                                  
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xA0,1,	{0x00}},//OTP select region                                                                                                                                                  
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xB3,5,    {0x00, 0x00, 0x20, 0x00, 0x00}},//Command Set Option Parameter                                                                                                               
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xB3,1,	{0x09}},//SRAM Setting                                                                                                                                                       
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xC0,9,	{0x00, 0x4C, 0x00, 0x10, 0x10, 0x00, 0x47, 0x10, 0x10}},//TCON Setting Parameters                                                                                            
+    {0x00,1,	{0x92}},                                                                                                                                                                     
+    {0xC0,4,	{0x00, 0x10, 0x00, 0x13}},//Panel Timing Setting Parameter                                                                                                                   
+    {0x00,1,	{0xA2}},                                                                                                                                                                     
+    {0xC0,3,	{0x0C, 0x05, 0x02}},//Panel Timing Setting Parameter                                                                                                                         
+    {0x00,1,	{0xB3}},                                                                                                                                                                     
+    {0xC0,2,	{0x00, 0x50}},//Interval Scan Frame Setting                                                                                                                                  
+    {0x00,1,    {0x81}},                                                                                                                                                                     
+    {0xC1,1,    {0x66}},//Oscillator Adjustment for Idle/Normal Mode                                                                                                                         
+    {0x00,1,    {0x80}},                                                                                                                                                                     
+    {0xC4,3,    {0x00, 0x84, 0xFC}},                                                                                                                                                         
+    {0x00,1,    {0xA0}},                                                                                                                                                                     
+    {0xB3,2,	{0x10, 0x00} },                                                                                                                                                              
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xC0,1,    {0x00}},                                                                                                                                                                     
+    {0x00,1,	{0x88}},                                                                                                                                                                     
+    {0xC4,1,    {0x40}},//488=source pl£¬±ÜÃâ?Áô?ºÉ È~¹¤                                                                                                                                     
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xC4,8,	{0x33, 0x09, 0x90, 0x2B, 0x33, 0x09, 0x90, 0x54}},//DC2DC Setting                                                                                                            
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xC5,4,	{0x08, 0x00, 0xA0, 0x11}},                                                                                                                                                   
+    {0x00,1,	{0x90}},                                                                                                                                                                     
+    {0xC5,7,	{0x96, 0x57, 0x01, 0x57, 0x33, 0x33, 0x34}},//Power Control Setting2 for Normal Mode                                                                                         
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xC5,7,	{0x96, 0x57, 0x00, 0x57, 0x33, 0x33, 0x34}},//Power Control Setting3 for Idle Mode                                                                                           
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xC5,7,	{0x04, 0xAC, 0x01, 0x00, 0x71, 0xB1, 0x83}},//Power Control Setting3 for DC Voltage Settings                                                                                 
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xD9,1,	{0x61}},//Vcom setting                                                                                                                                                       
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xC6,1,	{0x64}},//ABC Parameter                                                                                                                                                      
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xC6,5,	{0x03, 0x10, 0x00, 0x1F, 0x12}},//ABC Parameter                                                                                                                              
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xD0,1,	{0x40}},//ID1                                                                                                                                                                
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xD1,2,	{0x00, 0x00}},//ID2&ID3                                                                                                                                                      
+    {0x00,1,	{0xB7}},                                                                                                                                                                     
+    {0xB0,1,	{0x10}},                                                                                                                                                                     
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xB0,1,	{0x55}},                                                                                                                                                                     
+    {0x00,1,	{0xB1}},                                                                                                                                                                     
+    {0xB0,1,	{0x03}},                                                                                                                                                                     
+    {0x00,1,	{0x81}},                                                                                                                                                                     
+    {0xD6,1,	{0x00}},//Sharpness Off                                                                                                                                                      
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xE1,16,   {0x01, 0x07, 0x0B, 0x0C, 0x05, 0x0D, 0x0A, 0x08, 0x06, 0x08, 0x0D, 0x06, 0x0D, 0x16, 0x10, 0x01}},                                                                           
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xE2,16,   {0x02, 0x06, 0x0A, 0x0D, 0x05, 0x0C, 0x09, 0x08, 0x05, 0x08, 0x0E, 0x07, 0x0D, 0x16, 0x10, 0x00}},                                                                           
+    {0x00,1,	{0x80}},                                                                                                                                                                      
+    {0xCB,10,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0x90}},                                                                                                                                                                     
+    {0xCB,15,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xCB,15,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xCB,10,   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xCB,15,   {0x04, 0x04, 0x04, 0x04, 0x08, 0x04, 0x08, 0x04, 0x08, 0x04, 0x08, 0x04, 0x04, 0x04, 0x08}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xD0}},                                                                                                                                                                     
+    {0xCB,15,   {0x08, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x04, 0x04, 0x08, 0x04, 0x08, 0x04, 0x08, 0x04}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xE0}},                                                                                                                                                                     
+    {0xCB,10,   {0x08, 0x04, 0x04, 0x04, 0x08, 0x08, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0xF0}},                                                                                                                                                                     
+    {0xCB,10,   {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xCC,10,   {0x26, 0x25, 0x23, 0x24, 0x00, 0x0F, 0x00, 0x0D, 0x00, 0x0B}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0x90}},                                                                                                                                                                     
+    {0xCC,15,   {0x00, 0x09, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x26, 0x25, 0x21, 0x22, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xCC,15,   {0x10, 0x00, 0x0E, 0x00, 0x0C, 0x00, 0x0A, 0x02, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xCC,10,   {0x25, 0x26, 0x21, 0x22, 0x00, 0x0A, 0x00, 0x0C, 0x00, 0x0E}},//TCON GOA WAVE(Panel timing state control)                                                                    
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xCC,15,   {0x00, 0x10, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x25, 0x26, 0x23, 0x24, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0xD0}},                                                                                                                                                                     
+    {0xCC,15,   {0x09, 0x00, 0x0B, 0x00, 0x0D, 0x00, 0x0F, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},//TCON GOA WAVE(Panel timing state control)                                      
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xCE,12,   {0x8A, 0x03, 0x06, 0x89, 0x03, 0x06, 0x88, 0x03, 0x06, 0x87, 0x03, 0x06}},                                                                                                   
+    {0x00,1,	{0x90}},                                                                                                                                                                     
+    {0xCE,14,   {0xF0, 0x00, 0x00, 0xF0, 0x00, 0x00, 0xF0, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x00}},//GOA VEND and Group Setting                                                           
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xCE,14,   {0x38, 0x02, 0x03, 0xC1, 0x00, 0x06, 0x00, 0x38, 0x01, 0x03, 0xC2, 0x00, 0x06, 0x00}},//GOA CLK1 and GOA CLK2 Setting                                                        
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xCE,14,   {0x38, 0x00, 0x03, 0xC3, 0x00, 0x06, 0x00, 0x30, 0x00, 0x03, 0xC4, 0x00, 0x06, 0x00}},//GOA CLK3 and GOA CLK4 Setting                                                        
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xCE,14,   {0x38, 0x06, 0x03, 0xBD, 0x00, 0x06, 0x00, 0x38, 0x05, 0x03, 0xBE, 0x00, 0x06, 0x00}},//GOA CLKB1 and GOA CLKB2 Setting                                                      
+    {0x00,1,	{0xD0}},                                                                                                                                                                     
+    {0xCE,14,   {0x38, 0x04, 0x03, 0xBF, 0x00, 0x06, 0x00, 0x38, 0x03, 0x03, 0xC0, 0x00, 0x06, 0x00}},//GOA CLKB3 and GOA CLKB4 Setting                                                      
+    {0x00,1,	{0x80}},                                                                                                                                                                     
+    {0xCF,14,   {0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}},//GOA CLKC1 and GOA CLKC2 Setting                                                      
+    {0x00,1,	{0x90}},                                                                                                                                                                     
+    {0xCF,14,   {0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}},//GOA CLKC3 and GOA CLKC4 Setting                                                      
+    {0x00,1,	{0xA0}},                                                                                                                                                                     
+    {0xCF,14,   {0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}},//GOA CLKD1 and GOA CLKD2 Setting                                                      
+    {0x00,1,	{0xB0}},                                                                                                                                                                     
+    {0xCF,14,   {0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0xF0, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00}},//GOA CLKD3 and GOA CLKD4 Setting                                                      
+    {0x00,1,	{0xC0}},                                                                                                                                                                     
+    {0xCF,10,   {0x02, 0x02, 0x20, 0x20, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02}},//GOA ECLK Setting and GOA Other Options1 and GOA Signal Toggle Option Setting                                 
+    {0x00,1,	{0x00}},                                                                                                                                                                     
+    {0xD8,2,	{/*{0xA7, 0xA7}*/0x67,0x67}},// GVDD=5.2V, NGVDD=-5.2V                                                                                                                       
+
+    {0x11,0,{}},
+    {REGFLAG_DELAY, 120, {}},
+    {0x35,1,{0}},
+    {0x29,0,{}},
+    {REGFLAG_DELAY, 40, {}},
 
 
 	// Note
@@ -92,6 +196,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	// Setting ending by predefined flag
 	{REGFLAG_END_OF_TABLE, 0x00, {}}
 };
+#if 0
 static struct LCM_setting_table lcm_sleep_out_setting[] = {
     // Sleep Out
 	{0x11, 1, {0x00}},
@@ -102,25 +207,8 @@ static struct LCM_setting_table lcm_sleep_out_setting[] = {
 	{REGFLAG_DELAY, 120, {}},
 	{REGFLAG_END_OF_TABLE, 0x00, {}}
 };
+#endif
 
-
-static struct LCM_setting_table lcm_sleep_mode_in_setting[] = {
-	// Display off sequence
-	{0x28, 1, {0x00}},
-	{REGFLAG_DELAY, 200, {}},
-
-    // Sleep Mode On
-	{0x10, 1, {0x00}},
-	{REGFLAG_DELAY, 120, {}},
-	{REGFLAG_END_OF_TABLE, 0x00, {}}
-};
-static struct LCM_setting_table lcm_compare_id_setting[] = {
-	// Display off sequence
-	{0xF0,	5,	{0x55, 0xaa, 0x52,0x08,0x00}},
-	{REGFLAG_DELAY, 10, {}},
-
-	{REGFLAG_END_OF_TABLE, 0x00, {}}
-};
 
 void push_table(struct LCM_setting_table *table, unsigned int count, unsigned char force_update)
 {
@@ -142,17 +230,12 @@ void push_table(struct LCM_setting_table *table, unsigned int count, unsigned ch
 				
             default:
 				dsi_set_cmdq_V2(cmd, table[i].count, table[i].para_list, force_update);
-				MDELAY(2);
        	}
     }
 	
 }
 
 
-static void init_lcm_registers(void)
-{
-	unsigned int data_array[16];
-}
 // ---------------------------------------------------------------------------
 //  LCM Driver Implementations
 // ---------------------------------------------------------------------------
@@ -165,82 +248,84 @@ static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
 
 static void lcm_get_params(LCM_PARAMS *params)
 {
-		memset(params, 0, sizeof(LCM_PARAMS));
-	
-		params->type   = LCM_TYPE_DSI;
+	memset(params, 0, sizeof(LCM_PARAMS));
 
-		params->width  = FRAME_WIDTH;
-		params->height = FRAME_HEIGHT;
+	params->type   = LCM_TYPE_DSI;
 
-		// enable tearing-free
-		params->dbi.te_mode 				= LCM_DBI_TE_MODE_VSYNC_ONLY;
-		params->dbi.te_edge_polarity		= LCM_POLARITY_RISING;
+	params->width  = FRAME_WIDTH;
+	params->height = FRAME_HEIGHT;
+
+	// enable tearing-free
+	params->dbi.te_mode 				= LCM_DBI_TE_MODE_VSYNC_ONLY;
+	params->dbi.te_edge_polarity		= LCM_POLARITY_RISING;
 
 #if defined(LCM_DSI_CMD_MODE)
-		params->dsi.mode   = CMD_MODE;
+	params->dsi.mode   = CMD_MODE;
 #else
-		params->dsi.mode   = SYNC_PULSE_VDO_MODE;
+	params->dsi.mode   = SYNC_PULSE_VDO_MODE;
 #endif
 	
-		// DSI
-		/* Command mode setting */
-		params->dsi.LANE_NUM				= LCM_TWO_LANE;
-		//The following defined the fomat for data coming from LCD engine.
-		params->dsi.data_format.color_order = LCM_COLOR_ORDER_RGB;
-		params->dsi.data_format.trans_seq   = LCM_DSI_TRANS_SEQ_MSB_FIRST;
-		params->dsi.data_format.padding     = LCM_DSI_PADDING_ON_LSB;
-		params->dsi.data_format.format      = LCM_DSI_FORMAT_RGB888;
+	// DSI
+	/* Command mode setting */
+	params->dsi.LANE_NUM				= LCM_TWO_LANE;
+	//The following defined the fomat for data coming from LCD engine.
+	params->dsi.data_format.color_order = LCM_COLOR_ORDER_RGB;
+	params->dsi.data_format.trans_seq   = LCM_DSI_TRANS_SEQ_MSB_FIRST;
+	params->dsi.data_format.padding     = LCM_DSI_PADDING_ON_LSB;
+	params->dsi.data_format.format      = LCM_DSI_FORMAT_RGB888;
 
-		// Highly depends on LCD driver capability.
-		// Not support in MT6573
+	// Highly depends on LCD driver capability.
+	// Not support in MT6573
 
-			params->dsi.DSI_WMEM_CONTI=0x3C; 
-			params->dsi.DSI_RMEM_CONTI=0x3E; 
+	params->dsi.DSI_WMEM_CONTI=0x3C; 
+	params->dsi.DSI_RMEM_CONTI=0x3E; 
 
 		
-		params->dsi.packet_size=256;
+	params->dsi.packet_size=256;
 
-		// Video mode setting		
-		params->dsi.intermediat_buffer_num = 2;
+	// Video mode setting		
+	params->dsi.intermediat_buffer_num = 2;
 
-		params->dsi.PS=LCM_PACKED_PS_24BIT_RGB888;
+	params->dsi.PS=LCM_PACKED_PS_24BIT_RGB888;
 
-		params->dsi.vertical_sync_active				= 3;
-		params->dsi.vertical_backporch					= 12;
-		params->dsi.vertical_frontporch					= 2;
-		params->dsi.vertical_active_line				= FRAME_HEIGHT;
+	params->dsi.vertical_sync_active				= 3;
+	params->dsi.vertical_backporch					= 12;
+	params->dsi.vertical_frontporch					= 2;
+	params->dsi.vertical_active_line				= FRAME_HEIGHT;
 
-		params->dsi.horizontal_sync_active				= 10;
-		params->dsi.horizontal_backporch				= 50;
-		params->dsi.horizontal_frontporch				= 50;
-		params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
+	params->dsi.horizontal_sync_active				= 10;
+	params->dsi.horizontal_backporch				= 50;
+	params->dsi.horizontal_frontporch				= 50;
+	params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
 
-		// Bit rate calculation
-		params->dsi.pll_div1=38;		// fref=26MHz, fvco=fref*(div1+1)	(div1=0~63, fvco=500MHZ~1GHz)
-		params->dsi.pll_div2=1;			// div2=0~15: fout=fvo/(2*div2)
+	// Bit rate calculation
+	params->dsi.PLL_CLOCK				= 260;
 
+	params->dsi.clk_lp_per_line_enable = 0;
+	params->dsi.esd_check_enable = 1;
+	params->dsi.customization_esd_check_enable = 1;
+	params->dsi.lcm_esd_check_table[0].cmd          = 0x0A;
+	params->dsi.lcm_esd_check_table[0].count        = 1;
+	params->dsi.lcm_esd_check_table[0].para_list[0] = 0x9C;
 }
 
 static unsigned int lcm_compare_id(void)
 {
+	int   array[4];
+	char  buffer[3];
+	char  id0=0;
+	char  id1=0;
+	char  id2=0;
 
-		int   array[4];
-		char  buffer[3];
-		char  id0=0;
-		char  id1=0;
-		char  id2=0;
-
-
-		SET_RESET_PIN(0);
-		MDELAY(200);
-		SET_RESET_PIN(1);
-		MDELAY(200);
+	SET_RESET_PIN(0);
+	MDELAY(200);
+	SET_RESET_PIN(1);
+	MDELAY(200);
 		
 	array[0] = 0x00033700;// read id return two byte,version and id
 	dsi_set_cmdq(array, 1, 1);
 
-	read_reg_v2(0xDA,buffer, 1);
-
+	read_reg_v2(0xDA,buffer, 1); 
 	
 	array[0] = 0x00033700;// read id return two byte,version and id
 	dsi_set_cmdq(array, 1, 1);
@@ -254,73 +339,55 @@ static unsigned int lcm_compare_id(void)
 	id0 = buffer[0]; //should be 0x00
 	id1 = buffer[1];//should be 0xaa
 	id2 = buffer[2];//should be 0x55
-	#ifdef BUILD_UBOOT
-		printf("zhibin uboot %s\n", __func__);
-		printf("%s, id0 = 0x%08x\n", __func__, id0);//should be 0x00
-		printf("%s, id1 = 0x%08x\n", __func__, id1);//should be 0xaa
-		printf("%s, id2 = 0x%08x\n", __func__, id2);//should be 0x55
-	#else
-		//printk("zhibin kernel %s\n", __func__);	
-	#endif
+#ifdef BUILD_LK
+	printf("%s, id0 = 0x%08x\n", __func__, id0);//should be 0x00
+	printf("%s, id1 = 0x%08x\n", __func__, id1);//should be 0xaa
+	printf("%s, id2 = 0x%08x\n", __func__, id2);//should be 0x55
+#endif
 	
 	return 1;
-
-
 }
 
 static void lcm_init(void)
 {
-
-	SET_RESET_PIN(0);
-    MDELAY(200);
+    SET_RESET_PIN(0);
+    MDELAY(10);
     SET_RESET_PIN(1);
-    MDELAY(200);
-	//lcm_compare_id();
+    MDELAY(10);
 
     push_table(lcm_initialization_setting, sizeof(lcm_initialization_setting) / sizeof(struct LCM_setting_table), 1);
-	
 }
 
 
 
 static void lcm_suspend(void)
 {
-		//push_table(lcm_sleep_mode_in_setting, sizeof(lcm_sleep_mode_in_setting) / sizeof(struct LCM_setting_table), 1);
-		//SET_RESET_PIN(0);
-		//MDELAY(1);
-		//SET_RESET_PIN(1);
-			unsigned int data_array[2];
-#if 1
-		//data_array[0] = 0x00000504; // Display Off
-		//dsi_set_cmdq(&data_array, 1, 1);
-		//MDELAY(100); 
-		data_array[0] = 0x00280500; // Display Off
-		dsi_set_cmdq(&data_array, 1, 1);
-		MDELAY(10); 
-		data_array[0] = 0x00100500; // Sleep In
-		dsi_set_cmdq(&data_array, 1, 1);
-		MDELAY(100);
-#endif
-#ifdef BUILD_UBOOT
-		printf("zhibin uboot %s\n", __func__);
-#else
-		printk("zhibin kernel %s\n", __func__);
-#endif
+	unsigned int data_array[2];
 
+	data_array[0] = 0x00280500; // Display Off
+	dsi_set_cmdq(data_array, 1, 1);
+	MDELAY(10); 
+	data_array[0] = 0x00100500; // Sleep In
+	dsi_set_cmdq(data_array, 1, 1);
+	MDELAY(100);
+
+#ifdef BUILD_LK
+	printf("uboot %s\n", __func__);
+#else
+	pr_debug("kernel %s\n", __func__);
+#endif
 }
 
 
 static void lcm_resume(void)
 {
-		//lcm_init();	
-#ifdef BUILD_UBOOT
-		printf("zhibin uboot %s\n", __func__);
+#ifdef BUILD_LK
+	printf("uboot %s\n", __func__);
 #else
-		printk("zhibin kernel %s\n", __func__);
-	
+	pr_debug("kernel %s\n", __func__);
 #endif
-		push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
-
+//	push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
+	lcm_init();
 }
 
 
@@ -343,10 +410,10 @@ static void lcm_update(unsigned int x, unsigned int y,
 
 	unsigned int data_array[16];
 	
-#ifdef BUILD_UBOOT
-		printf("zhibin uboot %s\n", __func__);
+#ifdef BUILD_LK
+	printf("uboot %s\n", __func__);
 #else
-		printk("zhibin kernel %s\n", __func__);	
+	pr_debug("kernel %s\n", __func__);	
 #endif
 
 	data_array[0]= 0x00053902;
@@ -357,7 +424,7 @@ static void lcm_update(unsigned int x, unsigned int y,
 	data_array[5]= (y1_LSB);
 	data_array[6]= 0x002c3909;
 
-	dsi_set_cmdq(&data_array, 7, 0);
+	dsi_set_cmdq(data_array, 7, 0);
 
 }
 
@@ -365,7 +432,7 @@ static void lcm_update(unsigned int x, unsigned int y,
 
 LCM_DRIVER otm9608_wvga_dsi_cmd_drv = 
 {
-    .name			= "otm9608a_dsi",
+    .name			= "otm9608a_wvga_dsi_cmd",
 	.set_util_funcs = lcm_set_util_funcs,
 	.compare_id     = lcm_compare_id,
 	.get_params     = lcm_get_params,

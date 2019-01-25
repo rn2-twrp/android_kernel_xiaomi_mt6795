@@ -213,6 +213,7 @@ static int mpu_i2c_read_block(struct i2c_client *client, u8 addr, u8 *data, u8 l
 		msgs[1].len = len;
 		msgs[1].buf = data;	
 
+
 	if (!client) {
 		mutex_unlock(&mpu6050_i2c_mutex);
 		return -EINVAL;

@@ -41,7 +41,6 @@
 #include <asm/thread_notify.h>
 #include <asm/stacktrace.h>
 #include <asm/mach/time.h>
-#include <asm/tls.h>
 #include <mach/system.h>
 
 #ifdef CONFIG_CC_STACKPROTECTOR
@@ -342,6 +341,7 @@ void machine_power_off(void)
 	else
 	{
 		tsk = current;
+		dump_stack();
 	}
 
 	if(tsk->real_parent)
@@ -401,6 +401,7 @@ void machine_restart(char *cmd)
 	else
 	{
 		tsk = current;
+		dump_stack();
 	}
 
 	if(tsk->real_parent)
@@ -633,8 +634,7 @@ copy_thread(unsigned long clone_flags, unsigned long stack_start,
 	clear_ptrace_hw_breakpoint(p);
 
 	if (clone_flags & CLONE_SETTLS)
-		thread->tp_value[0] = childregs->ARM_r3;
-	thread->tp_value[1] = get_tpuser();
+		thread->tp_value = childregs->ARM_r3;
 
 	thread_notify(THREAD_NOTIFY_COPY, thread);
 

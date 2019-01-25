@@ -42,7 +42,7 @@
 #include <asm/mach/irq.h>
 #include <asm/mach/time.h>
 
-#include <linux/mt_sched_mon.h>
+#include "mt_sched_mon.h"
 unsigned long irq_err_count;
 
 int arch_show_interrupts(struct seq_file *p, int prec)

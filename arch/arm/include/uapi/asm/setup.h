@@ -17,7 +17,6 @@
 #include <linux/types.h>
 #include <mach/dfo_boot.h>
 #include <mach/mt_devinfo.h>
-
 #define COMMAND_LINE_SIZE 1024
 
 /* The list ends with an ATAG_NONE node. */
@@ -129,6 +128,13 @@ struct tag_videolfb {
 	__u8		rsvd_pos;
 };
 
+#ifdef CONFIG_TRUSTY
+#define ATAG_MEM_TEE_DESC 0x54410042
+/*
+mem_desc_t;
+*/
+#endif
+
 /* command line: \0 terminated string */
 #define ATAG_CMDLINE	0x54410009
 
@@ -173,6 +179,22 @@ struct tag_meta_com {
 #define ATAG_MDINFO_DATA 0x41000806
 struct tag_mdinfo_data{
 	u8 md_type[4];
+};
+
+#define ATAG_MASP_DATA         0x41000866
+#define NUM_SBC_PUBK_HASH           8
+#define NUM_CRYPTO_SEED          16
+#define NUM_RID 4
+
+struct tag_masp_data{
+	unsigned int rom_info_sbc_attr;
+	unsigned int rom_info_sdl_attr;
+	unsigned int hw_sbcen;
+	unsigned int lock_state;
+	unsigned int rid[NUM_RID];
+	/*rom_info.m_SEC_KEY.crypto_seed*/
+	unsigned char crypto_seed[NUM_CRYPTO_SEED];
+	unsigned int sbc_pubk_hash[NUM_SBC_PUBK_HASH];
 };
 
 #define ATAG_TEE_DATA 0x41000808
@@ -226,8 +248,9 @@ struct tag {
 		struct tag_boot		boot;
 		struct tag_meta_com	meta_com;
 		struct tag_devinfo_data	devinfo_data;
-                tag_dfo_boot     dfo_data;
-                struct tag_mdinfo_data mdinfo_data;
+		struct tag_masp_data	masp_data;
+        tag_dfo_boot     dfo_data;
+        struct tag_mdinfo_data mdinfo_data;
 		mem_desc_t tee_reserved_mem;
 #ifdef PT_ABTC_ATAG
 		struct tag_pt_info tag_pt_info;

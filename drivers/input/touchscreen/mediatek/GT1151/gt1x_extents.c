@@ -29,7 +29,9 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 #include <linux/input.h>
-
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 #include <asm/uaccess.h>
 #include <linux/proc_fs.h>	/*proc */
 
@@ -477,7 +479,36 @@ s32 hotknot_event_handler(u8 * data)
 #define IO_GET_VERISON               (_IOR(GOODIX_MAGIC_NUMBER, 110, u8) & NEGLECT_SIZE_MASK)
 #define IO_PRINT                     (_IOW(GOODIX_MAGIC_NUMBER, 111, u8) & NEGLECT_SIZE_MASK)
 #define IO_VERSION                   "V1.0-20140709"
+#ifdef CONFIG_COMPAT
+#define COMPAT_GESTURE_ENABLE_TOTALLY      _IO(GOODIX_MAGIC_NUMBER, 1)	// 1
+#define COMPAT_GESTURE_DISABLE_TOTALLY     _IO(GOODIX_MAGIC_NUMBER, 2)
+#define COMPAT_GESTURE_ENABLE_PARTLY       _IO(GOODIX_MAGIC_NUMBER, 3)
+#define COMPAT_GESTURE_DISABLE_PARTLY      _IO(GOODIX_MAGIC_NUMBER, 4)
+//#define SET_ENABLED_GESTURE         (_IOW(GOODIX_MAGIC_NUMBER, 5, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_GESTURE_DATA_OBTAIN         (_IOR(GOODIX_MAGIC_NUMBER, 6, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_GESTURE_DATA_ERASE          _IO(GOODIX_MAGIC_NUMBER, 7)
 
+//#define HOTKNOT_LOAD_SUBSYSTEM      (_IOW(GOODIX_MAGIC_NUMBER, 6, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_HOTKNOT_LOAD_HOTKNOT        _IO(GOODIX_MAGIC_NUMBER, 20)
+#define COMPAT_HOTKNOT_LOAD_AUTHENTICATION _IO(GOODIX_MAGIC_NUMBER, 21)
+#define COMPAT_HOTKNOT_RECOVERY_MAIN       _IO(GOODIX_MAGIC_NUMBER, 22)
+//#define HOTKNOT_BLOCK_RW            (_IOW(GOODIX_MAGIC_NUMBER, 6, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_HOTKNOT_DEVICES_PAIRED      _IO(GOODIX_MAGIC_NUMBER, 23)
+#define COMPAT_HOTKNOT_MASTER_SEND         _IO(GOODIX_MAGIC_NUMBER, 24)
+#define COMPAT_HOTKNOT_SLAVE_RECEIVE       _IO(GOODIX_MAGIC_NUMBER, 25)
+//#define HOTKNOT_DEVICES_COMMUNICATION
+#define COMPAT_HOTKNOT_MASTER_DEPARTED     _IO(GOODIX_MAGIC_NUMBER, 26)
+#define COMPAT_HOTKNOT_SLAVE_DEPARTED      _IO(GOODIX_MAGIC_NUMBER, 27)
+#define COMPAT_HOTKNOT_WAKEUP_BLOCK        _IO(GOODIX_MAGIC_NUMBER, 29)
+
+#define COMPAT_IO_IIC_READ                  (_IOR(GOODIX_MAGIC_NUMBER, 100, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_IO_IIC_WRITE                 (_IOW(GOODIX_MAGIC_NUMBER, 101, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_IO_RESET_GUITAR              _IO(GOODIX_MAGIC_NUMBER, 102)
+#define COMPAT_IO_DISABLE_IRQ               _IO(GOODIX_MAGIC_NUMBER, 103)
+#define COMPAT_IO_ENABLE_IRQ                _IO(GOODIX_MAGIC_NUMBER, 104)
+#define COMPAT_IO_GET_VERISON               (_IOR(GOODIX_MAGIC_NUMBER, 110, u8) & NEGLECT_SIZE_MASK)
+#define COMPAT_IO_PRINT                     (_IOW(GOODIX_MAGIC_NUMBER, 111, u8) & NEGLECT_SIZE_MASK)
+#endif
 #define CMD_HEAD_LENGTH             20
 static s32 io_iic_read(u8 * data, void __user * arg)
 {
@@ -538,14 +569,14 @@ static long gt1x_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	u8 *data = NULL;
 
 	GTP_DEBUG("IOCTL CMD:%x", cmd);
-	GTP_DEBUG("command:%d, length:%d, rw:%s", _IOC_NR(cmd), _IOC_SIZE(cmd), (_IOC_DIR(cmd) & _IOC_READ) ? "read" : (_IOC_DIR(cmd) & _IOC_WRITE) ? "write" : "-");
+	//GTP_DEBUG("command:%d, length:%d, rw:%s", _IOC_NR(cmd), _IOC_SIZE(cmd), (_IOC_DIR(cmd) & _IOC_READ) ? "read" : (_IOC_DIR(cmd) & _IOC_WRITE) ? "write" : "-");
 
 	if (_IOC_DIR(cmd)) {
 		s32 err = -1;
 		s32 data_length = _IOC_SIZE(cmd);
 		data = (u8 *) kzalloc(data_length, GFP_KERNEL);
 		memset(data, 0, data_length);
-
+		
 		if (_IOC_DIR(cmd) & _IOC_WRITE) {
 			err = copy_from_user(data, (void __user *)arg, data_length);
 			if (err) {
@@ -557,7 +588,7 @@ static long gt1x_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	} else {
 		value = (u32) arg;
 	}
-
+	
 	switch (cmd & NEGLECT_SIZE_MASK) {
 	case IO_GET_VERISON:
 		if ((u8 __user *) arg) {
@@ -716,7 +747,159 @@ static long gt1x_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	return ret;
 }
+#ifdef CONFIG_COMPAT
+static long gt1x_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	long ret, i;
+	GTP_DEBUG("gt1x_compat_ioctl cmd = %x, arg: 0x%lx\n",cmd, arg);
 
+	void __user *arg32 = compat_ptr(arg);
+	if (!file->f_op || !file->f_op->unlocked_ioctl)
+		return -ENOTTY;
+	
+    //GTP_DEBUG("gt1x_compat_ioctl arg: 0x%lx, arg32: 0x%p\n",arg, arg32);
+
+	switch (cmd & NEGLECT_SIZE_MASK) {
+		case COMPAT_IO_GET_VERISON:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_GET_VERISON\n");
+			if(arg32 == NULL)
+			{
+				GTP_ERROR("invalid argument.");
+				return -EINVAL;
+			}
+			
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_IIC_READ:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_IIC_READ\n");
+			if(arg32 == NULL)
+			{
+				GTP_ERROR("invalid argument.");
+				return -EINVAL;
+			}
+			
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_IIC_WRITE:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_IIC_WRITE\n");
+			if(arg32 == NULL)
+			{
+				GTP_ERROR("invalid argument.");
+				return -EINVAL;
+			}
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_RESET_GUITAR:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_RESET_GUITAR\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_DISABLE_IRQ:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_DISABLE_IRQ\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_ENABLE_IRQ:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_ENABLE_IRQ\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_IO_PRINT:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_IO_PRINT\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_ENABLE_TOTALLY:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_ENABLE_TOTALLY\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_DISABLE_TOTALLY:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_DISABLE_TOTALLY\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_ENABLE_PARTLY:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_ENABLE_PARTLY\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_DISABLE_PARTLY:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_DISABLE_PARTLY\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_DATA_OBTAIN:		
+			if(arg32 == NULL)
+			{
+				GTP_ERROR("invalid argument.");
+				return -EINVAL;
+			}
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_DATA_OBTAIN\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_GESTURE_DATA_ERASE:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_GESTURE_DATA_ERASE\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_LOAD_HOTKNOT:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_LOAD_HOTKNOT\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_LOAD_AUTHENTICATION:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_LOAD_AUTHENTICATION\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_RECOVERY_MAIN:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_RECOVERY_MAIN\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_DEVICES_PAIRED:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_DEVICES_PAIRED\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_MASTER_SEND:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_MASTER_SEND\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_SLAVE_RECEIVE:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_SLAVE_RECEIVE\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_MASTER_DEPARTED:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_MASTER_DEPARTED\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_SLAVE_DEPARTED:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_SLAVE_DEPARTED\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		case COMPAT_HOTKNOT_WAKEUP_BLOCK:
+			//GTP_DEBUG("gt1x_compat_ioctl COMPAT_HOTKNOT_WAKEUP_BLOCK\n");
+			ret = file->f_op->unlocked_ioctl(file, cmd,
+						   (unsigned long)arg32);
+			break;
+		default:
+			GTP_INFO("Unknown cmd.");
+			ret = -1;
+			break;
+	}
+	return ret;
+}
+#endif
 static const struct file_operations gt1x_fops = {
 	.owner = THIS_MODULE,
 #if GTP_GESTURE_WAKEUP
@@ -731,6 +914,9 @@ static const struct file_operations hotknot_fops = {
 	.unlocked_ioctl = gt1x_ioctl,
 	.open = hotknot_open,
 	.release = hotknot_release,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = gt1x_compat_ioctl,
+#endif
 };
 
 static struct miscdevice hotknot_misc_device = {

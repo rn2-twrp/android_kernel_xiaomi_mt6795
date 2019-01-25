@@ -2,7 +2,6 @@
  * f_mass_storage.c -- Mass Storage USB Composite Function
  *
  * Copyright (C) 2003-2008 Alan Stern
- * Copyright (C) 2018 XiaoMi, Inc.
  * Copyright (C) 2009 Samsung Electronics
  *                    Author: Michal Nazarewicz <mina86@mina86.com>
  * All rights reserved.
@@ -2817,7 +2816,7 @@ buffhds_first_it:
 	/* Prepare inquiryString */
 	i = get_default_bcdDevice();
 	snprintf(common->inquiry_string, sizeof common->inquiry_string,
-		 "%-8s%-16s%04x", cfg->vendor_name ?: "Redmi Note 2",    //qinhai modify for h3y
+		 "%-8s%-16s%04x", cfg->vendor_name ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
 		 cfg->product_name ?: (common->luns->cdrom
 				     ? "File-Stor Gadget"

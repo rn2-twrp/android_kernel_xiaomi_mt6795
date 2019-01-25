@@ -1,6 +1,5 @@
 /*
  * Copyright(C)2014 MediaTek Inc.
- * Copyright (C) 2018 XiaoMi, Inc.
  * Modification based on code covered by the below mentioned copyright
  * and/or permission notice(S).
  */
@@ -60,31 +59,6 @@
 #include <mach/i2c.h>		//for mtk i2c
 #include <linux/dma-mapping.h>
 
-#define USE_BOSCH_DAEMON 
-//#define ST_USE_BOSCH_DAEMON
-
-#ifdef USE_BOSCH_DAEMON
-   // #ifdef ST_USE_BOSCH_DAEMON
-    extern int lsm6ds3_m_open_report_data(int open);
-    extern int lsm6ds3_m_enable(int en);
-    extern int lsm6ds3_m_set_delay(u64 ns);
-    extern int lsm6ds3_m_get_data(int* x ,int* y,int* z, int* status);
-	extern int lsm6ds3_o_enable(int en);
-	extern int lsm6ds3_o_set_delay(u64 ns);
-	extern int lsm6ds3_o_open_report_data(int open);
-	extern int lsm6ds3_o_get_data(int* x ,int* y,int* z, int* status);
-  //  #else
-
-	extern int bmi160_m_open_report_data(int open);
-	extern int bmi160_m_enable(int en);
-	extern int bmi160_m_set_delay(u64 ns);
-	extern int bmi160_m_get_data(int* x ,int* y,int* z, int* status);
-	extern int bmi160_o_enable(int en);
-	extern int bmi160_o_set_delay(u64 ns);
-	extern int bmi160_o_open_report_data(int open);
-	extern int bmi160_o_get_data(int* x ,int* y,int* z, int* status);
-  //  #endif
-#endif
 
 #define YAS_MTK_NAME			"yas537"
 #define YAS_RAW_NAME			"yas537_raw"
@@ -117,11 +91,6 @@
 
 static struct i2c_client *this_client = NULL;
 static struct mutex yas537_i2c_mutex;
-
-#ifdef USE_BOSCH_DAEMON
-extern atomic_t bosch_chip;
-extern atomic_t st_chip;
-#endif
 
 
 struct yas_state {
@@ -592,7 +561,7 @@ static DEVICE_ATTR(mag_position, S_IRUSR|S_IWUSR, yas_mag_position_show,
 static DEVICE_ATTR(mag_hard_offset, S_IRUSR, yas_mag_hard_offset_show, NULL);
 static DEVICE_ATTR(mag_static_matrix, S_IRUSR|S_IWUSR,
 		yas_mag_static_matrix_show, yas_mag_static_matrix_store);
-static DEVICE_ATTR(mag_self_test, S_IRUSR|S_IRGRP|S_IROTH , yas_mag_self_test_show, NULL);
+static DEVICE_ATTR(mag_self_test, S_IRUSR, yas_mag_self_test_show, NULL);
 static DEVICE_ATTR(mag_self_test_noise, S_IRUSR, yas_mag_self_test_noise_show,
 		NULL);
 static DEVICE_ATTR(mag_average_sample, S_IRUSR|S_IWUSR,
@@ -620,60 +589,12 @@ static ssize_t daemon_name_show(struct device_driver *ddri, char *buf)
 {
 	char strbuf[64];
 	sprintf(strbuf, "yamaha537");
-	printk("1111111111111 ");
 	return sprintf(buf, "%s", strbuf);		
-}
-
-static ssize_t yas_input_show_value(struct device_driver *ddri, char *buf)
-{
-	struct yas_data data;
-	struct yas_state *st = i2c_get_clientdata(this_client);
-	int ret = st->mag.measure(&data, 1);
-	ssize_t count;
-	if(ret == YAS_ERROR_BUSY) {
-		while(ret == YAS_ERROR_BUSY)
-			ret = st->mag.measure(&data, 1);
-	}
-	//printk(KERN_INFO "ret is %d, xyz is %d %d %d, timestamp is %u\n", ret, data.xyz.v[0], data.xyz.v[1], data.xyz.v[2], data.timestamp);
-	count = sprintf(buf, "%d %d %d\n",  data.xyz.v[0], data.xyz.v[1], data.xyz.v[2]);
-	return count;
-}
-
-static ssize_t yas_input_show_op_mode(struct device_driver *ddri, char *buf)
-{
-	struct yas_state *st = i2c_get_clientdata(this_client);
-	int ret = st->mag.get_enable();
-	ssize_t count;
-	printk(KERN_INFO "ret for get_enable is %d\n", ret);
-	if(ret == 0)
-		ret = 2;
-	count = sprintf(buf, "%d", ret);
-	return count;
-}
-
-static ssize_t yas_input_store_op_mode(struct device_driver *ddri,
-		const char *buf, size_t count)
-{
-	struct yas_state *st = i2c_get_clientdata(this_client);
-	int enable, ret;
-	ret = kstrtoint(buf, 10, &enable);
-	switch(enable) {
-		case 0:
-		case 1:
-			ret = st->mag.set_enable(1);
-			break;
-		default:
-			ret = st->mag.set_enable(0);
-	}
-	printk(KERN_INFO "ret for set_enable is %d\n", ret);
-	return count;
 }
 
 static DRIVER_ATTR(daemon,      S_IRUGO, daemon_name_show, NULL);
 static DRIVER_ATTR(magenable,      S_IRUGO|S_IWUSR, yas_mag_enable_show, yas_mag_enable_store);
 static DRIVER_ATTR(magsensordata,      S_IRUGO, yas_mag_data_show, NULL);
-static DRIVER_ATTR(rawdata, S_IRUGO, yas_input_show_value, NULL);
-static DRIVER_ATTR(cpsopmode, S_IRUGO|S_IWUGO, yas_input_show_op_mode, yas_input_store_op_mode);
 
 
 static struct driver_attribute *yas537_attr_list[] = 
@@ -681,8 +602,6 @@ static struct driver_attribute *yas537_attr_list[] =
 	&driver_attr_daemon,
 	&driver_attr_magenable,
 	&driver_attr_magsensordata,
-	&driver_attr_rawdata,
-	&driver_attr_cpsopmode,
 };
 
 static int yas537_create_attr(struct device_driver *driver)
@@ -861,7 +780,6 @@ static void yas_work_func(struct work_struct *work)
 	schedule_delayed_work(&st->work, msecs_to_jiffies(delay));
 }
 
-#ifndef USE_BOSCH_DAEMON
 static int yas_m_enable(int en)
 {
 	struct yas_state *st = i2c_get_clientdata(this_client);
@@ -912,7 +830,6 @@ static int yas_o_get_data(int *x, int *y, int *z, int *status)
 	input_get_data(st->euler, x, y, z, status);
 	return 0;
 }
-#endif
 
 static int yas_local_init(void);
 static int yas_local_uninit(void);
@@ -965,7 +882,6 @@ static void yas_late_resume(struct early_suspend *h)
 }
 #endif
 
-#include <linux/dev_info.h>
 static int yas_probe(struct i2c_client *i2c,
 		const struct i2c_device_id *id)
 {
@@ -1103,89 +1019,11 @@ static int yas_probe(struct i2c_client *i2c,
 		ret = -EFAULT;
 		goto error_remove_sysfs;
 	}
-
-#ifdef CONFIG_CM865_MAINBOARD
-	ret = st->mag.set_position(3);
-#else
-	ret = st->mag.set_position(0);
-#endif
-	if (ret < 0) {
-		ret = -EFAULT;
-		goto error_remove_sysfs;
-	}
-
     ret = yas537_create_attr(&(yas_init_info.platform_diver_addr->driver));
 	if(ret < 0)
 	{
 		MAGN_ERR("yas537_create_attr error! \n");
 	}
-#ifdef USE_BOSCH_DAEMON
-   
-    //#ifdef ST_USE_BOSCH_DAEMON
-   if( (atomic_read(&bosch_chip) == 0) ||(atomic_read(&st_chip) == 1))
-   	{
-    	ctl.is_use_common_factory = false;
-	ctl.m_enable = lsm6ds3_m_enable;
-	ctl.m_set_delay  = lsm6ds3_m_set_delay;
-	ctl.m_open_report_data = lsm6ds3_m_open_report_data;
-	ctl.o_enable = lsm6ds3_o_enable;
-	ctl.o_set_delay  = lsm6ds3_o_set_delay;
-	ctl.o_open_report_data = lsm6ds3_o_open_report_data;
-	ctl.is_report_input_direct = false;
-	ctl.is_support_batch = st->hw->is_batch_supported;
-	
-	ret = mag_register_control_path(&ctl);
-	if(ret)
-	{
-		MAG_ERR("register mag control path err\n");
-		goto error_remove_sysfs;
-	}
-
-	mag_data.div_m = 4;
-	mag_data.div_o = 71;
-	mag_data.get_data_o = lsm6ds3_o_get_data;
-	mag_data.get_data_m = lsm6ds3_m_get_data;
-
-	ret = mag_register_data_path(&mag_data);
-	if(ret)
-	{
-		MAG_ERR("register data control path err\n");
-		goto error_remove_sysfs;
-	}
-  }
-   else{
-  //  #else
-	ctl.is_use_common_factory = false;
-	ctl.m_enable = bmi160_m_enable;
-	ctl.m_set_delay  = bmi160_m_set_delay;
-	ctl.m_open_report_data = bmi160_m_open_report_data;
-	ctl.o_enable = bmi160_o_enable;
-	ctl.o_set_delay  = bmi160_o_set_delay;
-	ctl.o_open_report_data = bmi160_o_open_report_data;
-	ctl.is_report_input_direct = false;
-	ctl.is_support_batch = st->hw->is_batch_supported;
-	
-	ret = mag_register_control_path(&ctl);
-	if(ret)
-	{
-		MAG_ERR("register mag control path err\n");
-		goto error_remove_sysfs;
-	}
-
-	mag_data.div_m = 4;
-	mag_data.div_o = 71;
-	mag_data.get_data_o = bmi160_o_get_data;
-	mag_data.get_data_m = bmi160_m_get_data;
-
-	ret = mag_register_data_path(&mag_data);
-	if(ret)
-	{
-		MAG_ERR("register data control path err\n");
-		goto error_remove_sysfs;
-	}
-}
- //  #endif
-#else
 	ctl.is_use_common_factory = false;
 	ctl.m_enable = yas_m_enable;
 	ctl.m_set_delay  = yas_m_set_delay;
@@ -1212,7 +1050,6 @@ static int yas_probe(struct i2c_client *i2c,
 		MAGN_ERR("register st control path ret\n");
 		goto error_remove_sysfs;
 	}
-#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	st->sus.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
@@ -1221,17 +1058,6 @@ static int yas_probe(struct i2c_client *i2c,
 		register_early_suspend(&st->sus);
 #endif
 	MAGN_ERR("%s: OK\n", __func__);
-		struct devinfo_struct *dev = (struct devinfo_struct*)kmalloc(sizeof(struct devinfo_struct), GFP_KERNEL);;
-		dev->device_type = "MAG";
-		dev->device_vendor = "YAMAHA"; 
-		dev->device_ic = "yas537";
-		dev->device_version = DEVINFO_NULL;
-		dev->device_module = DEVINFO_NULL; 
-		dev->device_info = DEVINFO_NULL;
-		dev->device_used = DEVINFO_USED;	
-		  DEVINFO_CHECK_ADD_DEVICE(dev);
-
-
 	return 0;
 
 error_remove_sysfs:
@@ -1363,6 +1189,7 @@ static void __exit yas_exit(void)
 {
 	MAGN_LOG("[%s]\n", __func__);
 }
+
 module_init(yas_init);
 module_exit(yas_exit);
 

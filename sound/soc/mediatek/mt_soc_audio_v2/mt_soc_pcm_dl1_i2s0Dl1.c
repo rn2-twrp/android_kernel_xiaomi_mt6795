@@ -276,6 +276,7 @@ static int mtk_pcm_I2S0dl1_hw_params(struct snd_pcm_substream *substream,
         //substream->runtime->dma_bytes = AFE_INTERNAL_SRAM_SIZE;
         substream->runtime->dma_area = (unsigned char *)Get_Afe_SramBase_Pointer();
         substream->runtime->dma_addr = AFE_INTERNAL_SRAM_PHY_BASE;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,false);
         AudDrv_Allocate_DL1_Buffer(mDev, substream->runtime->dma_bytes);
     }
     else
@@ -283,6 +284,7 @@ static int mtk_pcm_I2S0dl1_hw_params(struct snd_pcm_substream *substream,
         substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
         substream->runtime->dma_area = Dl1_Playback_dma_buf->area;
         substream->runtime->dma_addr = Dl1_Playback_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,true);
         SetDL1Buffer(substream, hw_params);
     }
 #else //old
@@ -560,6 +562,8 @@ static int mtk_pcm_I2S0dl1_copy(struct snd_pcm_substream *substream,
         printk(" u4BufferSize=0 Error");
         return 0;
     }
+
+	AudDrv_checkDLISRStatus();
 
     spin_lock_irqsave(&auddrv_I2S0dl1_lock, flags);
     copy_size = Afe_Block->u4BufferSize - Afe_Block->u4DataRemained;  //  free space of the buffer

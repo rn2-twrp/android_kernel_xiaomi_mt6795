@@ -123,11 +123,7 @@ const ipanic_dt_op_t ipanic_dt_ops[] = {
 	{"IPANIC_HEADER", 0, NULL},
 	{"SYS_KERNEL_LOG", __LOG_BUF_LEN, ipanic_klog_buffer},
 	{"SYS_WDT_LOG", WDT_LOG_LEN, ipanic_klog_buffer},
-#ifdef CONFIG_MTK_WQ_DEBUG
-	{"SYS_WQ_LOG", WQ_LOG_LEN, ipanic_klog_buffer},
-#else
 	{"SYS_WQ_LOG", 0, NULL},
-#endif
 	{"reserved", 0, NULL},
 	{"reserved", 0, NULL},
 	{"PROC_CUR_TSK", sizeof(struct aee_process_info), ipanic_current_task_info},
@@ -453,7 +449,7 @@ int ipanic(struct notifier_block *this, unsigned long event, void *ptr)
 {
 	struct ipanic_data_header *dheader;
 	struct kmsg_dumper dumper;
-    ipanic_atf_log_rec_t atf_log = {ATF_LOG_SIZE, 0, 0};
+	ipanic_atf_log_rec_t atf_log = {ATF_LOG_SIZE, 0, 0};
 	int dt;
 	int errno;
 	struct ipanic_header *ipanic_hdr;
@@ -484,9 +480,6 @@ int ipanic(struct notifier_block *this, unsigned long event, void *ptr)
 	aee_wdt_dump_info();
 	ipanic_klog_region(&dumper);
 	ipanic_data_to_sd(IPANIC_DT_WDT_LOG, &dumper);
-#ifdef CONFIG_MTK_WQ_DEBUG
-	mt_dump_wq_debugger();
-#endif
 	ipanic_klog_region(&dumper);
 	ipanic_data_to_sd(IPANIC_DT_WQ_LOG, &dumper);
 	ipanic_data_to_sd(IPANIC_DT_MMPROFILE, 0);
@@ -615,7 +608,7 @@ static int ipanic_die(struct notifier_block *self, unsigned long cmd, void *ptr)
 
 	if (aee_rr_curr_exp_type() == 2)
 	/* No return if mrdump is enable */
-	aee_kdump_reboot(AEE_REBOOT_MODE_KERNEL_OOPS, "Kernel Oops");
+		aee_kdump_reboot(AEE_REBOOT_MODE_KERNEL_OOPS, "Kernel Oops");
 
 	smp_send_stop();
 

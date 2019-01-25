@@ -755,7 +755,7 @@ static unsigned int lcm_compare_id(void)
 	printf("%s, LK nt35596 debug: nt35596 0x%08x\n", __func__,
 	       id);
 #else
-	printk("%s,kernel nt35596 horse debug: nt35596 id = 0x%08x\n",
+	pr_debug("%s,kernel nt35596 horse debug: nt35596 id = 0x%08x\n",
 	       __func__, id);
 #endif
 

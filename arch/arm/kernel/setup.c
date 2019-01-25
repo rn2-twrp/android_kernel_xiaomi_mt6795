@@ -98,6 +98,9 @@ EXPORT_SYMBOL(system_serial_high);
 unsigned int elf_hwcap __read_mostly;
 EXPORT_SYMBOL(elf_hwcap);
 
+unsigned int elf_hwcap2 __read_mostly;
+EXPORT_SYMBOL(elf_hwcap2);
+
 
 #ifdef MULTI_CPU
 struct processor processor __read_mostly;
@@ -369,7 +372,7 @@ void __init early_print(const char *str, ...)
 
 static void __init cpuid_init_hwcaps(void)
 {
-	unsigned int divide_instrs;
+	unsigned int divide_instrs, features, block;
 
 	if (cpu_architecture() < CPU_ARCH_ARMv7)
 		return;
@@ -382,6 +385,37 @@ static void __init cpuid_init_hwcaps(void)
 	case 1:
 		elf_hwcap |= HWCAP_IDIVT;
 	}
+
+	/*
+	 * ID_ISAR5 contains 4-bit wide signed feature blocks.
+	 * The blocks we test below represent incremental functionality
+	 * for non-negative values. Negative values are reserved.
+	 */
+	features = read_cpuid_ext(CPUID_EXT_ISAR5);
+	block = (features >> 4) & 0xf;
+	if (!(block & 0x8)) {
+		switch (block) {
+		default:
+		case 2:
+			elf_hwcap2 |= HWCAP2_PMULL;
+		case 1:
+			elf_hwcap2 |= HWCAP2_AES;
+		case 0:
+			break;
+		}
+	}
+
+	block = (features >> 8) & 0xf;
+	if (block && !(block & 0x8))
+		elf_hwcap2 |= HWCAP2_SHA1;
+
+	block = (features >> 12) & 0xf;
+	if (block && !(block & 0x8))
+		elf_hwcap2 |= HWCAP2_SHA2;
+
+	block = (features >> 16) & 0xf;
+	if (block && !(block & 0x8))
+		elf_hwcap2 |= HWCAP2_CRC32;
 }
 
 static void __init feat_v6_fixup(void)
@@ -922,6 +956,15 @@ static const char *hwcap_str[] = {
 	NULL
 };
 
+static const char *hwcap2_str[] = {
+	"aes",
+	"pmull",
+	"sha1",
+	"sha2",
+	"crc32",
+	NULL
+};
+
 static void c_show_features(struct seq_file *m, u32 cpuid)
 {
 	int j;
@@ -932,6 +975,10 @@ static void c_show_features(struct seq_file *m, u32 cpuid)
         for (j = 0; hwcap_str[j]; j++)
                 if (elf_hwcap & (1 << j))
                         seq_printf(m, "%s ", hwcap_str[j]);
+
+	for (j = 0; hwcap2_str[j]; j++)
+		if (elf_hwcap2 & (1 << j))
+			seq_printf(m, "%s ", hwcap2_str[j]);
 
         seq_printf(m, "\nCPU implementer\t: 0x%02x\n", cpuid >> 24);
         seq_printf(m, "CPU architecture: %s\n",

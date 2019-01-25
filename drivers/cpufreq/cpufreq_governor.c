@@ -54,7 +54,6 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 	extern int g_cpus_sum_load_current;
 	g_cpus_sum_load_current = 0;
 #endif
-	// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 	if (dbs_data->cdata->governor == GOV_ONDEMAND)
 		ignore_nice = od_tuners->ignore_nice_load;
@@ -131,7 +130,6 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 		g_cpus_sum_load_current += load;
 		//pr_emerg("***** cpu: %d, load: %u, g_cpus_sum_load_current: %d, smp_processor_id: %d, num_online_cpus(): %d *****\n", j, load, g_cpus_sum_load_current, smp_processor_id(), num_online_cpus());
 #endif
-		// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 		if (dbs_data->cdata->governor == GOV_ONDEMAND
 		    || dbs_data->cdata->governor == GOV_HOTPLUG // <-XXX
@@ -155,7 +153,6 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 		pr_debug("dbs_check_cpu: freq_avg = %d, max_load_freq = %d, g_cpus_sum_load_current = %d\n", freq_avg, max_load_freq, g_cpus_sum_load_current);
 #endif
 #endif
-		// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 	}
 
 	dbs_data->cdata->gov_check_cpu(cpu, max_load);
@@ -331,7 +328,6 @@ int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			hp_ops = dbs_data->cdata->gov_ops;
 			rc = input_register_handler(hp_ops->input_handler);
 			pr_debug("@%s(CPUFREQ_GOV_POLICY_INIT), rc = %d\n", __func__, rc);
-		// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 		}
 
 		if (!have_governor_per_policy())
@@ -347,13 +343,12 @@ int cpufreq_governor_dbs(struct cpufreq_policy *policy,
             
 			hp_ops = dbs_data->cdata->gov_ops;
 			input_unregister_handler(hp_ops->input_handler);
-			pr_debug("@%s(CPUFREQ_GOV_POLICY_EXIT), rc = %d\n", __func__, rc);
+			pr_debug("@%s(CPUFREQ_GOV_POLICY_EXIT)\n", __func__);
             		
 			mutex_lock(&dbs_data->mutex);
 			mutex_destroy(&cdbs->timer_mutex);
 			mutex_unlock(&dbs_data->mutex);
 		}
-		// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 		if (!--dbs_data->usage_count) {
 			sysfs_remove_group(get_governor_parent_kobj(policy),

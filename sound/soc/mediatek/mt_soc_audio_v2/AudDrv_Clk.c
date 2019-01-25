@@ -152,11 +152,11 @@ void AudDrv_Clk_On(void)
 #ifdef PM_MANAGER_API
         if (enable_clock(MT_CG_INFRA_AUDIO, "AUDIO"))
         {
-            xlog_printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_INFRA_AUDIO fail !!!\n");
+            printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_INFRA_AUDIO fail !!!\n");
         }
         if (enable_clock(MT_CG_AUDIO_AFE, "AUDIO"))
         {
-            xlog_printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
+            printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
         }
 #else
         SetInfraCfg(AUDIO_CG_CLR, 0x2000000, 0x2000000); //bit 25=0, without 133m master and 66m slave bus clock cg gating
@@ -183,11 +183,11 @@ void AudDrv_Clk_Off(void)
 #ifdef PM_MANAGER_API
             if (disable_clock(MT_CG_AUDIO_AFE, "AUDIO"))
             {
-                xlog_printk(ANDROID_LOG_ERROR, "Sound", "disable_clock MT_CG_AUDIO_AFE fail");
+                printk(ANDROID_LOG_ERROR, "Sound", "disable_clock MT_CG_AUDIO_AFE fail");
             }
             if (disable_clock(MT_CG_INFRA_AUDIO, "AUDIO"))
             {
-                xlog_printk(ANDROID_LOG_ERROR, "Sound", "disable_clock MT_CG_INFRA_AUDIO fail !!!\n");
+                printk(ANDROID_LOG_ERROR, "Sound", "disable_clock MT_CG_INFRA_AUDIO fail !!!\n");
             }
 #else
             Afe_Set_Reg(AUDIO_TOP_CON0, 0x06000044, 0x06000044);
@@ -769,7 +769,7 @@ void AudDrv_Suspend_Clk_Off(void)
         {
             if (disable_clock(MT_CG_AUDIO_AFE, "AUDIO"))
             {
-                xlog_printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
+                printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
             }
         }
         if (Aud_I2S_Clk_cntr > 0)
@@ -852,7 +852,7 @@ void AudDrv_Suspend_Clk_On(void)
         {
             if (enable_clock(MT_CG_AUDIO_AFE, "AUDIO"))
             {
-                xlog_printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
+                printk(ANDROID_LOG_ERROR, "Sound", "Aud enable_clock MT_CG_AUDIO_AFE fail !!!\n");
             }
         }
         if (Aud_I2S_Clk_cntr > 0)

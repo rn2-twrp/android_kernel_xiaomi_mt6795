@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2014-2015 Yamaha Corporation
- * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This software is provided 'as-is', without any express or implied
  * warranty.  In no event will the authors be held liable for any damages
@@ -103,8 +102,7 @@ struct yas_cdriver {
 };
 
 static const struct yas_matrix no_conversion
-	//= { {10000, 0, 0, 0, 10000, 0, 0, 0, 10000} };
-	= { {10553, 262, 312, 48, 9604, -507, -177, 167, 9852} };
+	= { {10000, 0, 0, 0, 10000, 0, 0, 0, 10000} };
 static const int measure_time_worst[] = {800, 1100, 1500, 3000, 6000, 12000};
 
 static const int8_t YAS537_TRANSFORMATION[][9] = {

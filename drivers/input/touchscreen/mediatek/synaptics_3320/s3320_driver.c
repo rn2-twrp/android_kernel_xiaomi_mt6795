@@ -579,12 +579,12 @@ void synaptics_power ( unsigned int on )
 
 	if ( on )
 	{
-		hwPowerOn ( MT6323_POWER_LDO_VGP2, VOL_3000, "TP" );
+		//hwPowerOn ( MT6323_POWER_LDO_VGP2, VOL_3000, "TP" );
 		msleep ( 100 );
 	}
 	else
 	{
-		hwPowerDown ( MT6323_POWER_LDO_VGP2, "TP" );
+		//hwPowerDown ( MT6323_POWER_LDO_VGP2, "TP" );
 		msleep ( 10 );
 	}
 

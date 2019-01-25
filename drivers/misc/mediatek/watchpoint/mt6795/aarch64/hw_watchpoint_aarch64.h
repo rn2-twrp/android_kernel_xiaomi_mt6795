@@ -81,6 +81,7 @@ struct dbgreg_set {
 
 #define EDLAR 0xFB0
 #define EDLSR 0xFB4
+#define DBGAUTHSTATUS_EL1 0xFB8
 #define OSLAR_EL1 0x300
 
 #define UNLOCK_KEY 0xC5ACCE55
@@ -93,6 +94,9 @@ struct dbgreg_set {
 #define LSC_LDR (1 << 3)
 #define LSC_STR (2 << 3)
 #define LSC_ALL (3 << 3)
+
+#define NSNID_SHIFT 2
+#define SNID_SHIFT 6
 
 #define WATCHPOINT_TEST_SUIT
 

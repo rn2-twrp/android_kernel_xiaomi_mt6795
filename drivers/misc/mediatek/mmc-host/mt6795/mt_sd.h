@@ -1335,6 +1335,7 @@ struct msdc_host {
 	u32 xfer_size;		/* total transferred size */
 
 	struct msdc_dma dma;	/* dma channel */
+	u64 dma_mask;
 	u32 dma_addr;		/* dma transfer address */
 	u32 dma_left_size;	/* dma transfer left size */
 	u32 dma_xfer_size;	/* dma transfer size in bytes */
@@ -1392,9 +1393,9 @@ struct msdc_host {
     u8                          autocmd;
     u32                         sw_timeout;
     u32                         power_cycle; /* power cycle done in tuning flow*/
-	bool                        power_cycle_enable;/*Enable power cycle*/
+		bool                        power_cycle_enable;/*Enable power cycle*/
 
-	u32							continuous_fail_request_count;
+		u32							continuous_fail_request_count;
 
     u32                         sd_30_busy;
     bool                        tune;

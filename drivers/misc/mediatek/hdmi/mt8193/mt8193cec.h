@@ -1,7 +1,7 @@
 #ifndef __mt8193cec_h__
 #define __mt8193cec_h__
 
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
+#ifdef HDMI_MT8193_SUPPORT
 
 typedef enum {
 	CEC_NORMAL_MODE = 0,

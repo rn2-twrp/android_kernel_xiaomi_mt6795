@@ -2,7 +2,6 @@
  * Compressed RAM block device
  *
  * Copyright (C) 2008, 2009, 2010  Nitin Gupta
- * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This code is released using a dual license strategy: BSD/GPL
  * You can choose the licence that better fits your requirements.
@@ -108,6 +107,12 @@ static struct table * search_node_in_zram_list(struct zram *zram,struct zram_met
 		else
 		{
 			cmem = zs_map_object(meta->mem_pool, current_node->handle, ZS_MM_RO);
+#ifdef CONFIG_MT_ENG_BUILD
+                	/* Move to the start of bitstream */
+			if(current_node->size != PAGE_SIZE)
+                		cmem += GUIDE_BYTES_HALFLEN;
+#endif
+
 			ret = memcmp(cmem,match_content,input_node->size);
 			compare_count++;
 			if(ret == 0)
@@ -167,7 +172,6 @@ static struct table *search_node_in_zram_tree(struct table *input_node,struct rb
 			}
 			else
 			{
-				//printk("[zram]rb tree found 0x%x size\n",(unsigned int)&current_node->node,current_node->size);
 				return current_node;
 			}
 		}
@@ -194,7 +198,7 @@ static u32 insert_node_to_zram_tree(struct zram *zram,struct zram_meta *meta,u32
 	{
 		if(!zsm_test_flag(meta,current_node,ZRAM_RB_NODE))
 		{
-			printk("[ZRAM]ERROR !!found wrong rb node 0x%x\n",(unsigned int)current_node);
+			printk("[ZRAM]ERROR !!found wrong rb node 0x%p\n",(void *)current_node);
 			BUG_ON(1);	
 		}
 
@@ -208,7 +212,7 @@ static u32 insert_node_to_zram_tree(struct zram *zram,struct zram_meta *meta,u32
 			//insert node after the found node
 			if(!zsm_test_flag(meta,current_node,ZRAM_FIRST_NODE))
                         {
-                                printk("[ZRAM]ERROR !!found wrong first node 0x%x\n",(unsigned int)node_in_list);
+                                printk("[ZRAM]ERROR !!found wrong first node 0x%p\n",(void *)node_in_list);
 				BUG_ON(1);
                         }
 			input_node->next_index = node_in_list->next_index;
@@ -303,7 +307,7 @@ static int remove_node_from_zram_list(struct zram *zram,struct zram_meta *meta,u
                                 {
 					u32 tmp_index = 0;
 	                                printk("[ZRAM]ERROR !!can't find2 meta->table[%d].size %d chunksum %d in list\n",index,meta->table[index].size,meta->table[index].checksum);
-					tmp_index = meta->table[current_index].copy_count;
+					tmp_index = meta->table[current_index].copy_index;
 					if(i > meta->table[tmp_index].copy_count)
                                         {
                                                 BUG_ON(1);
@@ -403,7 +407,7 @@ void zram_set_hooks(void *compress_func, void *decompress_func, const char *name
 EXPORT_SYMBOL(zram_set_hooks);
 
 /* Module params (documentation at end) */
-static unsigned int num_devices = 4;
+static unsigned int num_devices = 1;
 
 static void zram_stat64_add(struct zram *zram, u64 *v, u64 inc)
 {
@@ -497,19 +501,23 @@ static void zram_free_page(struct zram *zram, size_t index)
 	}
 	if(ret == 0)	
 	{
-	zs_free(meta->mem_pool, handle);
+		zs_free(meta->mem_pool, handle);
+		if (size <= PAGE_SIZE / 2)
+			zram->stats.good_compress--;
+        		zram_stat64_sub(zram, &zram->stats.compr_size,
+					meta->table[index].size);
+		zram->stats.pages_stored--;
 	}
 
 #else
 	zs_free(meta->mem_pool, handle);
-#endif
 	if (size <= PAGE_SIZE / 2)
 		zram->stats.good_compress--;
 
 	zram_stat64_sub(zram, &zram->stats.compr_size,
 			meta->table[index].size);
 	zram->stats.pages_stored--;
-
+#endif
 	meta->table[index].handle = 0;
 	meta->table[index].size = 0;
 }
@@ -774,7 +782,6 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
                 meta->table[index].next_index = index;
                 meta->table[index].copy_index = index;
                 meta->table[index].copy_count = 0;
-                //rb_init_node(&(meta->table[index].node));		
                 INIT_LIST_HEAD(&(meta->table[index].head));
 		if(src != NULL)
 		{

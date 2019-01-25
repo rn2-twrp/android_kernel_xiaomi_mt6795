@@ -68,7 +68,7 @@
 /*****************************************************************************
  *** CONFIGURATION
  *****************************************************************************/
-#define _MC3XXX_SUPPORT_DOT_CALIBRATION_
+//#define _MC3XXX_SUPPORT_DOT_CALIBRATION_  /* Just for mcube's calibration APK*/
 #define _MC3XXX_SUPPORT_LPF_
 #define _MC3XXX_SUPPORT_CONCURRENCY_PROTECTION_
 //#define _MC3XXX_SUPPORT_APPLY_AVERAGE_AGORITHM_
@@ -117,7 +117,7 @@
         #define GSE_TAG                  "[Gsensor] "
         #define GSE_FUN(f)               printk(KERN_INFO GSE_TAG"%s\n", __FUNCTION__)
         #define GSE_ERR(fmt, args...)    printk(KERN_ERR GSE_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
-        #define GSE_LOG(fmt, args...)    printk(KERN_INFO GSE_TAG fmt, ##args)
+        #define GSE_LOG(fmt, args...)    printk(KERN_NOTICE GSE_TAG fmt, ##args)
     #else
         #define GSE_TAG
         #define GSE_FUN(f)               do {} while (0)
@@ -140,6 +140,14 @@
         #define PS_LOG(fmt, args...)    do {} while (0)
     #endif
 
+/* Maintain  cust info here */
+struct acc_hw accel_cust;
+static struct acc_hw *hw = &accel_cust;
+
+/* For  driver get cust info */
+struct acc_hw *get_cust_acc(void) {
+    return &accel_cust;
+}
 /*****************************************************************************
  *** DATA TYPE / STRUCTURE DEFINITION / ENUM
  *****************************************************************************/
@@ -254,13 +262,21 @@ static struct acc_init_info  mc3xxx_init_info =
         .init   = mc3xxx_local_init,
         .uninit = mc3xxx_remove,
     };
-
+#ifdef CONFIG_OF
+static const struct of_device_id accel_of_match[] = {
+        {.compatible = "mediatek,GSENSOR"},
+        {},
+};
+#endif
 static const struct i2c_device_id                mc3xxx_i2c_id[]              = { {MC3XXX_DEV_NAME, 0}, {} };
-static       struct i2c_board_info __initdata    mc3xxx_i2c_board_info        = { I2C_BOARD_INFO(MC3XXX_DEV_NAME, 0x4C) };
+//static       struct i2c_board_info __initdata    mc3xxx_i2c_board_info        = { I2C_BOARD_INFO(MC3XXX_DEV_NAME, 0x4C) };
 static       unsigned short                      mc3xxx_i2c_auto_probe_addr[] = { 0x4C, 0x6C, 0x4E, 0x6D, 0x6E, 0x6F };
 static struct i2c_driver    mc3xxx_i2c_driver = {
                                                     .driver = {
                                                                   .name = MC3XXX_DEV_NAME,
+                                                   #ifdef CONFIG_OF
+                                                                  .of_match_table = accel_of_match,
+                                                   #endif
                                                               },
                                                     .probe  = mc3xxx_i2c_probe,
                                                     .remove = mc3xxx_i2c_remove,
@@ -372,7 +388,6 @@ static signed char    s_bAccuracyStatus = SENSOR_STATUS_ACCURACY_MEDIUM;
             {                                                                         \
                 if (s_bMPOL & 0x01)    nDataX = -nDataX;                              \
                 if (s_bMPOL & 0x02)    nDataY = -nDataY;                              \
-                GSE_LOG("[%s] 35X0 remap [s_bMPOL: %d]\n", __FUNCTION__, s_bMPOL);    \
             }
 
 #define MCUBE_WREMAP(nDataX, nDataY)                                                  \
@@ -485,6 +500,10 @@ static int MC3XXX_i2c_write_block(struct i2c_client *client, u8 addr, u8 *data, 
         GSE_ERR("send command error!!\n");
         mutex_unlock(&MC3XXX_i2c_mutex);
         return -EFAULT;
+    }
+	else
+    {
+        err = 0;
     }
     mutex_unlock(&MC3XXX_i2c_mutex);
     return err;
@@ -643,7 +662,7 @@ static int mcube_read_cali_file(struct i2c_client *client)
     int err = 0;
     char buf[64] = {0};
 
-    GSE_LOG("[%s] sizeof(buf): %ld\n",__func__, sizeof(buf));
+    GSE_LOG("[%s]\n",__func__);
 
     initKernelEnv();
     fd_file = openFile(file_path,O_RDONLY,0);
@@ -884,6 +903,8 @@ static int psensor_ps_operate(void* self, uint32_t command, void* buff_in, int s
  *****************************************/
 static void MC3XXX_power(struct acc_hw *hw, unsigned int on)
 {
+#ifdef __USE_LINUX_REGULATOR_FRAMEWORK__
+#else
     static unsigned int power_on = 0;
 
     if(hw->power_id != MT65XX_POWER_NONE)        // have externel LDO
@@ -909,6 +930,7 @@ static void MC3XXX_power(struct acc_hw *hw, unsigned int on)
         }
     }
     power_on = on;
+#endif
 }
 
 #ifdef _MC3XXX_SUPPORT_DOT_CALIBRATION_
@@ -1292,12 +1314,14 @@ _LRF_RETURN:
  *****************************************/
 static void    _MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
 {
+    struct mc3xxx_i2c_data   *_pt_i2c_obj = mc3xxx_obj_i2c_data;
+	
     waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X] + offset_data[MC3XXX_AXIS_X] / 2) * 1024 / gain_data[MC3XXX_AXIS_X] + 8096;
     waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y] + offset_data[MC3XXX_AXIS_Y] / 2) * 1024 / gain_data[MC3XXX_AXIS_Y] + 8096;
     waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z] + offset_data[MC3XXX_AXIS_Z] / 2) * 1024 / gain_data[MC3XXX_AXIS_Z] + 8096;
-
-    GSE_LOG("RBM->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+    if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("RBM->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+    }
     iAReal0_X             = (0x0010 * waData[MC3XXX_AXIS_X]);
     iAcc1Lpf0_X           = GetLowPassFilter(iAReal0_X,iAcc1Lpf1_X);
     iAcc0Lpf0_X           = GetLowPassFilter(iAcc1Lpf0_X,iAcc0Lpf1_X);
@@ -1312,15 +1336,15 @@ static void    _MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
     iAcc1Lpf0_Z           = GetLowPassFilter(iAReal0_Z,iAcc1Lpf1_Z);
     iAcc0Lpf0_Z           = GetLowPassFilter(iAcc1Lpf0_Z,iAcc0Lpf1_Z);
     waData[MC3XXX_AXIS_Z] = (iAcc0Lpf0_Z / 0x0010);
-
-    GSE_LOG("RBM->RAW->LPF <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+    if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("RBM->RAW->LPF <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+    }
     waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X] - 8096) * gsensor_gain.x / 1024;
     waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y] - 8096) * gsensor_gain.y / 1024;
     waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z] - 8096) * gsensor_gain.z / 1024;
-
-    GSE_LOG("RBM->RAW->LPF->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+    if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("RBM->RAW->LPF->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+    }
     iAcc0Lpf1_X=iAcc0Lpf0_X;
     iAcc1Lpf1_X=iAcc1Lpf0_X;
     iAcc0Lpf1_Y=iAcc0Lpf0_Y;
@@ -1335,9 +1359,11 @@ static void    _MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
 static int    MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_AXES_NUM])
 {
     u8    _baData[MC3XXX_DATA_LEN] = { 0 };
-
-    GSE_LOG("[%s] s_nIsRBM_Enabled: %d\n", __FUNCTION__, s_nIsRBM_Enabled);
-
+    struct mc3xxx_i2c_data   *_pt_i2c_obj = ((struct mc3xxx_i2c_data*) i2c_get_clientdata(pt_i2c_client));
+	
+	if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("[%s] s_nIsRBM_Enabled: %d\n", __FUNCTION__, s_nIsRBM_Enabled);
+	}
     if (NULL == pt_i2c_client)
     {
         GSE_ERR("ERR: Null Pointer\n");
@@ -1359,9 +1385,9 @@ static int    MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XX
             waData[MC3XXX_AXIS_X] = ((s8) _baData[0]);
             waData[MC3XXX_AXIS_Y] = ((s8) _baData[1]);
             waData[MC3XXX_AXIS_Z] = ((s8) _baData[2]);
-
-            GSE_LOG("[%s][low] X: %d, Y: %d, Z: %d\n", __FUNCTION__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+            if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+                GSE_LOG("[%s][low] X: %d, Y: %d, Z: %d\n", __FUNCTION__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+            }
 
             #ifdef _MC3XXX_SUPPORT_LRF_
                 _MC3XXX_LowResFilter(MC3XXX_AXIS_X, waData);
@@ -1381,19 +1407,22 @@ static int    MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XX
             waData[MC3XXX_AXIS_X] = ((signed short) ((_baData[0]) | (_baData[1]<<8)));
             waData[MC3XXX_AXIS_Y] = ((signed short) ((_baData[2]) | (_baData[3]<<8)));
             waData[MC3XXX_AXIS_Z] = ((signed short) ((_baData[4]) | (_baData[5]<<8)));
-
-            GSE_LOG("[%s][high] X: %d, Y: %d, Z: %d\n", __FUNCTION__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+                if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+                    GSE_LOG("[%s][high] X: %d, Y: %d, Z: %d\n", __FUNCTION__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+                }
+			}
+        if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+            GSE_LOG("RAW<<<<<[%04d %04d %04d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
         }
-
-        GSE_LOG("RAW<<<<<[%04d %04d %04d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
         #ifdef _MC3XXX_SUPPORT_LPF_
         {
             struct mc3xxx_i2c_data   *_ptPrivData = i2c_get_clientdata(pt_i2c_client);
 
             MC3XXX_LPF(_ptPrivData, waData);
-            GSE_LOG("LPF<<<<<[%04d %04d %04d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-        }
+			if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+                GSE_LOG("LPF<<<<<[%04d %04d %04d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+			}
+		}
         #endif
     }
     else
@@ -1408,9 +1437,9 @@ static int    MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XX
         waData[MC3XXX_AXIS_X] = ((s16)((_baData[0]) | (_baData[1] << 8)));
         waData[MC3XXX_AXIS_Y] = ((s16)((_baData[2]) | (_baData[3] << 8)));
         waData[MC3XXX_AXIS_Z] = ((s16)((_baData[4]) | (_baData[5] << 8)));
-
-        GSE_LOG("RBM<<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+        if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+             GSE_LOG("RBM<<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+        }
         _MC3XXX_ReadData_RBM2RAW(waData);
     }
 
@@ -1716,7 +1745,7 @@ static int MC3XXX_SetPowerMode(struct i2c_client *client, bool enable)
         res = MC3XXX_i2c_write_block(client, MC3XXX_REG_MODE_FEATURE, databuf, 1);
     }
 
-    if(res <= 0)
+    if(res < 0)
     {
         GSE_LOG("fwq set power mode failed!\n");
         return MC3XXX_RETCODE_ERROR_I2C;
@@ -1823,8 +1852,10 @@ static void MC3XXX_SetSampleRate(struct i2c_client *pt_i2c_client)
         default:      GSE_ERR("[%s] no chance to get here... check code!\n", __FUNCTION__);    break;
         }
     }
-
-    MC3XXX_i2c_write_block(pt_i2c_client, 0x2A, _baDataBuf, 1);
+    else 
+        _baDataBuf[0] = 0x00;
+	
+    MC3XXX_i2c_write_block(pt_i2c_client, MC3XXX_REG_SAMPLE_RATE, _baDataBuf, 1);
 }
 
 /*****************************************
@@ -1835,7 +1866,9 @@ static void MC3XXX_ConfigRegRange(struct i2c_client *pt_i2c_client)
     unsigned char    _baDataBuf[2] = { 0 };
     int res = 0;
 
-    _baDataBuf[0] = 0x3F;
+    //_baDataBuf[0] = 0x3F;
+    /* Modify low pass filter bandwith to 512hz, for solving sensor data don't change issue */
+	_baDataBuf[0] = 0x0F;
 
     if (MC3XXX_RESOLUTION_LOW == s_bResolution)
         _baDataBuf[0] = 0x32;
@@ -1964,8 +1997,6 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
     int                       _naAccelData[MC3XXX_AXES_NUM] = { 0 };
     struct mc3xxx_i2c_data   *_pt_i2c_obj = ((struct mc3xxx_i2c_data*) i2c_get_clientdata(pt_i2c_client));
 
-    GSE_LOG("[%s]\n", __FUNCTION__);
-
     if ((NULL == pt_i2c_client) || (NULL == pbBuf))
     {
         GSE_ERR("ERR: Null Pointer \n");
@@ -2001,18 +2032,23 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
     }
 
     //output format: mg
-    GSE_LOG("[%s] raw data: %d, %d, %d\n", __FUNCTION__, _pt_i2c_obj->data[MC3XXX_AXIS_X], _pt_i2c_obj->data[MC3XXX_AXIS_Y], _pt_i2c_obj->data[MC3XXX_AXIS_Z]);
-    _naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_X])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_X] * _pt_i2c_obj->data[MC3XXX_AXIS_X]);
+    if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("[%s] raw data: %d, %d, %d\n", __FUNCTION__, _pt_i2c_obj->data[MC3XXX_AXIS_X], _pt_i2c_obj->data[MC3XXX_AXIS_Y], _pt_i2c_obj->data[MC3XXX_AXIS_Z]);
+    }
+	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_X])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_X] * _pt_i2c_obj->data[MC3XXX_AXIS_X]);
     _naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Y])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Y] * _pt_i2c_obj->data[MC3XXX_AXIS_Y]);
     _naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Z])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Z] * _pt_i2c_obj->data[MC3XXX_AXIS_Z]);
 
-    GSE_LOG("[%s] map data: %d, %d, %d!\n", __FUNCTION__, _naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
-
-    _naAccelData[MC3XXX_AXIS_X] = (_naAccelData[MC3XXX_AXIS_X] * GRAVITY_EARTH_1000 / gsensor_gain.x);
+	if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+        GSE_LOG("[%s] map data: %d, %d, %d!\n", __FUNCTION__, _naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
+	}
+	_naAccelData[MC3XXX_AXIS_X] = (_naAccelData[MC3XXX_AXIS_X] * GRAVITY_EARTH_1000 / gsensor_gain.x);
     _naAccelData[MC3XXX_AXIS_Y] = (_naAccelData[MC3XXX_AXIS_Y] * GRAVITY_EARTH_1000 / gsensor_gain.y);
     _naAccelData[MC3XXX_AXIS_Z] = (_naAccelData[MC3XXX_AXIS_Z] * GRAVITY_EARTH_1000 / gsensor_gain.z);
-    GSE_LOG("[%s] accel data: %d, %d, %d!\n", __FUNCTION__, _naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
 
+	if(atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO) {
+	    GSE_LOG("[%s] accel data: %d, %d, %d!\n", __FUNCTION__, _naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
+	}
     sprintf(pbBuf, "%04x %04x %04x", _naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
 
     return (MC3XXX_RETCODE_SUCCESS);
@@ -2757,7 +2793,7 @@ static ssize_t store_regiter_map(struct device_driver *ddri, const char *buf, si
 static ssize_t show_chip_orientation(struct device_driver *ptDevDrv, char *pbBuf)
 {
     ssize_t          _tLength = 0;
-    struct acc_hw   *_ptAccelHw = get_cust_acc_hw();
+    struct acc_hw   *_ptAccelHw = get_cust_acc();
 
     GSE_LOG("[%s] default direction: %d\n", __FUNCTION__, _ptAccelHw->direction);
 
@@ -3938,7 +3974,7 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
         goto exit;
     }
 
-    obj->hw = get_cust_acc_hw();
+    obj->hw = hw;
 
     if((err = hwmsen_get_convert(obj->hw->direction, &obj->cvt)))
     {
@@ -4084,7 +4120,6 @@ static int mc3xxx_i2c_remove(struct i2c_client *client)
  *****************************************/
 static int mc3xxx_remove(void)
 {
-    struct acc_hw *hw = get_cust_acc_hw();
 
     GSE_FUN();
 
@@ -4099,7 +4134,6 @@ static int mc3xxx_remove(void)
  *****************************************/
 static int  mc3xxx_local_init(void)
 {
-    struct acc_hw *hw = get_cust_acc_hw();
 
     GSE_FUN();
     MC3XXX_power(hw, 1);
@@ -4123,9 +4157,15 @@ static int  mc3xxx_local_init(void)
  *****************************************/
 static int __init mc3xxx_init(void)
 {
-    struct acc_hw *hw = get_cust_acc_hw();
-    GSE_LOG("%s: i2c_number=%d\n", __func__,hw->i2c_num);
+    const char *name = "mediatek,MC3410";
+    hw =	get_accel_dts_func(name, hw);
+	if (!hw)
+		hw = get_cust_acc_hw();
+#ifdef CONFIG_MTK_LEGACY
+	struct i2c_board_info   mc3xxx_i2c_board_info  = { I2C_BOARD_INFO(MC3XXX_DEV_NAME, hw->i2c_addr[0]) };
+    GSE_LOG("%s: i2c_number:%d, i2c_addr:0x%02x\n", __func__,hw->i2c_num,hw->i2c_addr[0]);
     i2c_register_board_info(hw->i2c_num, &mc3xxx_i2c_board_info, 1);
+#endif	
     acc_driver_add(&mc3xxx_init_info);
     return 0;
 }

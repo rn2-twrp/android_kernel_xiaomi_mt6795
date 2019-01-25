@@ -3,7 +3,6 @@
 #include <linux/wakelock.h>
 #include <linux/module.h>
 #include <linux/device.h>
-#include <linux/delay.h>
 //#include <linux/miscdevice.h>
 #include <linux/platform_device.h>
 #include <linux/timer.h>
@@ -105,107 +104,6 @@ struct wake_lock EINT_suspend_lock;
 static unsigned int cur_eint_num;
 #endif
 static DEFINE_SPINLOCK(eint_lock);
-
-struct deint_des {
-        int eint_num;
-        int irq_num;
-        int used;
-};
-
-static u32 deint_possible_irq[8];
-static struct deint_des deint_descriptors[MAX_DEINT_CNT];
-
-int mt_eint_clr_deint(int eint_num)
-{
-        int deint_mapped = 0;
-
-        if ((eint_num < 0) || (eint_num >= EINT_MAX_CHANNEL)) {
-                pr_err("%s: eint_num(%d) is not in (0, %d)\n", __func__, eint_num, EINT_MAX_CHANNEL);
-                return -1;
-        }
-
-        for (deint_mapped = 0; deint_mapped < MAX_DEINT_CNT ; ++deint_mapped) {
-                if (deint_descriptors[deint_mapped].eint_num == eint_num) {
-                        deint_descriptors[deint_mapped].eint_num = 0;
-                        deint_descriptors[deint_mapped].irq_num = 0;
-                        deint_descriptors[deint_mapped].used = 0;
-                        break;
-                }
-        }
-
-        if (deint_mapped == MAX_DEINT_CNT) {
-                pr_err("%s: no deint(%d) used now\n", __func__, eint_num);
-                return -1;
-        }
-
-        return 0;
-}
-
-int mt_eint_set_deint(int eint_num, int irq_num)
-{
-        int deint_mapped = 0;
-	int i = 0;
-
-        /* TODO: get MAX_DEINT_CNT from device tree */
-        if ((eint_num < 0) || (eint_num >= EINT_MAX_CHANNEL)) {
-                pr_err("%s: eint_num(%d) is not in (0, %d)\n", __func__, eint_num, EINT_MAX_CHANNEL);
-                return -1;
-        }
-
-        /* first usable deint descriptor */
-        for (deint_mapped = 0; deint_mapped < MAX_DEINT_CNT ; ++deint_mapped) {
-                if (deint_descriptors[deint_mapped].used == 0) {
-                        deint_descriptors[deint_mapped].eint_num = eint_num;
-                        deint_descriptors[deint_mapped].irq_num = irq_num;
-                        deint_descriptors[deint_mapped].used = 1;
-                        break;
-                }
-        }
-
-        if (deint_mapped == MAX_DEINT_CNT) {
-                pr_err("%s: no idle deint now\n", __func__);
-                return -1;
-        }
-
-	for (i = 0; i < MAX_DEINT_CNT ; ++i) {
-		if (deint_possible_irq[i] == irq_num) {
-			break;
-		}
-	}
-
-	if (i == MAX_DEINT_CNT) {
-		pr_err("%s: no matched possible deint irq for %d\n", __func__, irq_num);
-		dump_stack();
-		mt_eint_clr_deint(eint_num);
-		return -1;
-	}
-
-        /* mask from eintc, only triggered by GIC */
-        mt_eint_mask(eint_num);
-
-        /* set eint part as high-level to bypass signal to GIC */
-        mt_eint_set_polarity(eint_num, MT_POLARITY_HIGH);
-        mt_eint_set_sens(eint_num, MT_LEVEL_SENSITIVE);
-
-        /* clear old deint_sel */
-        if (deint_mapped < 4) {
-                writel(0xff<<(deint_mapped*8), IOMEM(DEINT_SEL_CLR_BASE));
-        } else if ((deint_mapped >= 4) && (deint_mapped < 8)) {
-                writel(0xff<<(deint_mapped*8), IOMEM(DEINT_SEL_CLR_BASE+4));
-        }
-
-        /* set our new deint_sel setting */
-        if (deint_mapped < 4) {
-                writel((eint_num<<(deint_mapped*8)), IOMEM(DEINT_SEL_SET_BASE));
-        } else if ((deint_mapped >= 4) && (deint_mapped < 8)) {
-                writel((eint_num<<(deint_mapped*8)), IOMEM(DEINT_SEL_SET_BASE+4));
-        }
-
-        /* finally, we can enable it */
-        writel(readl(IOMEM(DEINT_CON_BASE))|(1<<deint_mapped), IOMEM(DEINT_CON_BASE));
-
-        return 0;
-}
 
 /*
  * mt_eint_get_mask: To get the eint mask
@@ -1799,44 +1697,6 @@ static void mt_eint_autounmask_test(void)
      free_irq(EINT_IRQ(eint_num),NULL);
 }
 
-static irqreturn_t mt_deint_soft_revert_isr(unsigned irq, struct irq_desc *desc)
-{
-    printk("======DEINT_SOFT_REVERT_ISR======\n");
-    printk("irq = %d\n", irq);
-    irq_set_irq_type(irq, IRQF_TRIGGER_HIGH);
-    printk("======DEINT_SOFT_REVERT_ISR_END======\n");
-    return IRQ_HANDLED;
-}
-
-static void mt_deint_test(void)
-{
-     int ret=0;
-
-     printk("%s for EINT %d\n", __func__, eint_num);
-
-     ret = mt_eint_set_deint(eint_num, 189);
-     if (ret == 0) {
-          printk("mt_eint_set_deint done\n");
-     } else {
-          printk("mt_eint_set_deint fail\n");
-          return;
-     }
-
-     ret=request_irq(189,(irq_handler_t)mt_deint_soft_revert_isr, IRQF_TRIGGER_HIGH,"EINT-AUTOUNMASK",NULL);
-     if(ret>0) {
-         printk(KERN_ERR "EINT IRQ LINE NOT AVAILABLE!!\n");
-         return;
-     }
-     printk("EINT %d request_irq done\n",eint_num);
-     irq_set_irq_type(189, IRQF_TRIGGER_LOW);
-
-     printk("trigger EINT %d done\n",eint_num);
-     printk("EINT %d, MASK 0x%d\n",eint_num,mt_eint_get_mask(eint_num));
-
-     free_irq(189,NULL);
-     mt_eint_clr_deint(eint_num);
-}
-
 static int mt_eint_non_autounmask_test(void)
 {
      int ret = 0;
@@ -1960,7 +1820,6 @@ static ssize_t test_show(struct device_driver *driver, char *buf)
                                    "3.EINT new design hw debounce test\n"
                                    "4.EINT new design sw debounce test\n"
                                    "5.EINT new design without auto-unmask\n"
-                                   "6.EINT deint test\n"
    );
 }
 
@@ -1988,8 +1847,6 @@ static ssize_t test_store(struct device_driver *driver, const char *buf,size_t c
             case 5:
                 mt_eint_non_autounmask_test();
                 break;
-            case 6:
-                mt_deint_test();
             default:
                 break;
         }
@@ -2170,7 +2027,7 @@ static int __init mt_eint_init(void)
 #if defined(EINT_TEST)
         EINT_FUNC.softisr_called[i] = 0;
 #endif
-	init_timer(&EINT_FUNC.eint_sw_deb_timer[i]);
+        init_timer(&EINT_FUNC.eint_sw_deb_timer[i]);
     }
 
     /* register EINT driver */
@@ -2208,14 +2065,6 @@ static int __init mt_eint_init(void)
                                 &irq_domain_simple_ops, eint_drv);
     if (!domain)
         printk(KERN_ERR "EINT domain add error\n");
-
-    /* "deint_possible_irq" should be 0 terminated and at most contains 8 possible irq */
-    if (of_property_read_u32_array(node, "deint_possible_irq", deint_possible_irq, ARRAY_SIZE(deint_possible_irq))){
-        pr_warn("[EINT] deint function would fail...since there is no <deint_possible_irq> in DTS\n");
-    }
-    pr_notice("[EINT] possible deint irq = %u, %u, %u, %u, %u, %u, %u, %u\n", 
-		deint_possible_irq[0], deint_possible_irq[1], deint_possible_irq[2], deint_possible_irq[3],
-		deint_possible_irq[4], deint_possible_irq[5], deint_possible_irq[6], deint_possible_irq[7]);
 
     irq_set_chained_handler(eint_irq, (irq_flow_handler_t)mt_eint_demux);
     /* Test */ 
@@ -2265,8 +2114,7 @@ EXPORT_SYMBOL(mt_eint_unmask);
 EXPORT_SYMBOL(mt_eint_print_status);
 EXPORT_SYMBOL(mt_gpio_set_debounce);
 EXPORT_SYMBOL(mt_gpio_to_irq);
-EXPORT_SYMBOL(mt_eint_set_deint);
-EXPORT_SYMBOL(mt_eint_clr_deint);
+
 
 #if defined(EINT_TEST)
 EXPORT_SYMBOL(mt_eint_soft_set);

@@ -476,6 +476,7 @@ typedef struct
 {
     unsigned int mStatus;  // on,off
     unsigned int mIrqMcuCounter;
+	unsigned int mIrqMcuCounterSave;
     unsigned int mSampleRate;
 } AudioIrqMcuMode;
 

@@ -52,6 +52,8 @@
 #ifndef _AUDIO_AFE_CONTROL_H
 #define _AUDIO_AFE_CONTROL_H
 
+#include "AudDrv_Type_Def.h"
+#include "AudDrv_Common.h"
 #include "mt_soc_digital_type.h"
 #include "AudDrv_Def.h"
 #include <sound/memalloc.h>
@@ -114,6 +116,7 @@ bool Set2ndI2SInEnable(bool bEnable);
 bool SetI2SASRCConfig(bool bIsUseASRC, unsigned int dToSampleRate);
 bool SetI2SASRCEnable(bool bEnable);
 
+bool checkDllinkMEMIfStatus(void);
 bool checkUplinkMEMIfStatus(void);
 bool  SetMemIfFetchFormatPerSample(uint32 InterfaceType, uint32 eFetchFormat);
 bool SetoutputConnectionFormat(uint32 ConnectionFormat, uint32  Output);
@@ -159,7 +162,11 @@ bool ClearMemBlock(Soc_Aud_Digital_Block MemBlock);
 
 void Auddrv_Dl1_Spinlock_lock(void);
 void Auddrv_Dl1_Spinlock_unlock(void);
+void Auddrv_Dl2_Spinlock_lock(void);
+void Auddrv_Dl2_Spinlock_unlock(void);
+
 void Auddrv_DL1_Interrupt_Handler(void);
+void Auddrv_DL2_Interrupt_Handler(void);
 void Auddrv_UL1_Interrupt_Handler(void);
 void Auddrv_UL1_Spinlock_lock(void);
 void Auddrv_UL1_Spinlock_unlock(void);
@@ -198,11 +205,16 @@ void SetExternalModemStatus(const bool bEnable);
 
 // set VOW status for AFE GPIO control
 void SetVOWStatus(bool bEnable);
+bool ConditionEnterSuspend(void);
+void SetFMEnableFlag(bool bEnable);
 
 unsigned int Align64ByteSize(unsigned int insize);
+bool SetHighAddr(Soc_Aud_Digital_Block MemBlock,bool usingdram);
 
 #ifdef CONFIG_OF
 int GetGPIO_Info(int type, int *pin, int *pinmode);
 #endif
+
+void AudDrv_checkDLISRStatus(void);
 
 #endif

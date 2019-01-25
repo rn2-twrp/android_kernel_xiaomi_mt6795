@@ -5,7 +5,7 @@
 #ifdef BUILD_UBOOT
 //
 #else
-#include <linux/kernel.h>//for printk
+#include <linux/kernel.h>//for pr_debug
 #endif
 
 

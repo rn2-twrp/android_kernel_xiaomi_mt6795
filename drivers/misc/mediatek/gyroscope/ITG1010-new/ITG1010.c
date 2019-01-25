@@ -65,10 +65,18 @@
 #define ITG1010_DEV_NAME        "ITG-1010A"
 /*----------------------------------------------------------------------------*/
 static const struct i2c_device_id ITG1010_i2c_id[] = {{ITG1010_DEV_NAME,0},{}};
-static struct i2c_board_info __initdata i2c_ITG1010={ I2C_BOARD_INFO(ITG1010_DEV_NAME, (ITG1010_I2C_SLAVE_ADDR>>1))};
+//static struct i2c_board_info __initdata i2c_ITG1010={ I2C_BOARD_INFO(ITG1010_DEV_NAME, (ITG1010_I2C_SLAVE_ADDR>>1))};
 
 int packet_thresh = 75; // 600 ms / 8ms/sample
 
+/* Maintain  cust info here */
+struct gyro_hw gyro_cust;
+static struct gyro_hw *hw = &gyro_cust;
+	
+/* For  driver get cust info */
+struct gyro_hw *get_cust_gyro(void) {
+    return &gyro_cust;
+}
 /*----------------------------------------------------------------------------*/
 static int ITG1010_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
 static int ITG1010_i2c_remove(struct i2c_client *client);
@@ -154,9 +162,18 @@ struct ITG1010_i2c_data
 #endif
 };
 /*----------------------------------------------------------------------------*/
+#ifdef CONFIG_OF
+static const struct of_device_id gyro_of_match[] = {
+        {.compatible = "mediatek,GYRO"},
+        {},
+};
+#endif
 static struct i2c_driver ITG1010_i2c_driver = {
     .driver = {
         .name           = ITG1010_DEV_NAME,
+#ifdef CONFIG_OF
+        .of_match_table = gyro_of_match,
+#endif			
     },
     .probe              = ITG1010_i2c_probe,
     .remove             = ITG1010_i2c_remove,
@@ -371,7 +388,8 @@ EXPORT_SYMBOL(ITG1010_gyro_mode);
 /*--------------------gyroscopy power control function----------------------------------*/
 static void ITG1010_power(struct gyro_hw *hw, unsigned int on)
 {
-
+#ifdef __USE_LINUX_REGULATOR_FRAMEWORK__
+#else
     if (hw->power_id != POWER_NONE_MACRO)        // have externel LDO
     {
         GYRO_LOG("power %s\n", on ? "on" : "off");
@@ -395,6 +413,7 @@ static void ITG1010_power(struct gyro_hw *hw, unsigned int on)
         }
     }
     power_on = on;
+#endif
 }
 /*----------------------------------------------------------------------------*/
 
@@ -1242,7 +1261,7 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 static ssize_t show_chip_orientation(struct device_driver *ddri, char *buf)
 {
     ssize_t          _tLength = 0;
-    struct gyro_hw   *_ptAccelHw = get_cust_gyro_hw();
+    struct gyro_hw   *_ptAccelHw = hw;
 
    GYRO_LOG("[%s] default direction: %d\n", __FUNCTION__, _ptAccelHw->direction);
 
@@ -2033,7 +2052,7 @@ static int ITG1010_i2c_probe(struct i2c_client *client, const struct i2c_device_
 
     memset(obj, 0, sizeof(struct ITG1010_i2c_data));
 
-    obj->hw = get_cust_gyro_hw();
+    obj->hw = hw;
     err = hwmsen_get_convert(obj->hw->direction, &obj->cvt);
     if (err)
     {
@@ -2102,7 +2121,7 @@ static int ITG1010_i2c_probe(struct i2c_client *client, const struct i2c_device_
         }
 
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_EARLYSUSPEND)
     obj->early_drv.level    = EARLY_SUSPEND_LEVEL_STOP_DRAWING - 2,
     obj->early_drv.suspend  = ITG1010_early_suspend,
     obj->early_drv.resume   = ITG1010_late_resume,
@@ -2226,7 +2245,6 @@ static int ITG1010_i2c_remove(struct i2c_client *client)
 /*----------------------------------------------------------------------------*/
 static int ITG1010_remove(void)
 {
-    struct gyro_hw *hw = get_cust_gyro_hw();
     GYRO_FUN();
     ITG1010_power(hw, 0);
     i2c_del_driver(&ITG1010_i2c_driver);
@@ -2235,7 +2253,6 @@ static int ITG1010_remove(void)
 /*----------------------------------------------------------------------------*/
 static int ITG1010_local_init(void)
 {
-    struct gyro_hw *hw = get_cust_gyro_hw();
     //printk("fwq loccal init+++\n");
 
     ITG1010_power(hw, 1);
@@ -2255,9 +2272,15 @@ static int ITG1010_local_init(void)
 /*----------------------------------------------------------------------------*/
 static int __init ITG1010_init(void)
 {
-    struct gyro_hw *hw = get_cust_gyro_hw();
-    GYRO_LOG("%s: i2c_number=%d\n", __func__,hw->i2c_num);
+    const char *name = "mediatek,ITG1010";
+    hw = get_gyro_dts_func(name, hw);
+	if (!hw)
+		hw = get_cust_gyro_hw();
+#ifdef CONFIG_MTK_LEGACY
+	struct i2c_board_info i2c_ITG1010={ I2C_BOARD_INFO(ITG1010_DEV_NAME, hw->i2c_addr[0])};
+    GYRO_LOG("%s: i2c_number=%d,i2c_addr=0x%x\n", __func__,hw->i2c_num,hw->i2c_addr[0]);
     i2c_register_board_info(hw->i2c_num, &i2c_ITG1010, 1);
+#endif
     gyro_driver_add(&ITG1010_init_info);
 
     return 0;

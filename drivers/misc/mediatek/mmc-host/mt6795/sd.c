@@ -76,6 +76,10 @@ extern int msdc_autok_apply_param(struct msdc_host *host, unsigned int vcore_uv)
 #include "mach/mtk_hibernate_dpm.h"
 #endif
 
+#ifdef CONFIG_MMC_FFU
+#include <linux/mmc/ffu.h>
+#endif
+
 /*#if 1*/
 #ifndef FPGA_PLATFORM
 #include <mach/mt_pm_ldo.h>
@@ -107,6 +111,11 @@ extern int msdc_autok_apply_param(struct msdc_host *host, unsigned int vcore_uv)
 #ifdef CONFIG_MTK_EMMC_SUPPORT
 u32 g_emmc_mode_switch = 0;
 /* #define MTK_EMMC_ETT_TO_DRIVER */ /* for eMMC off-line apply to driver */ 
+#endif
+
+#define FEATURE_MET_MMC_INDEX
+#if !defined(CONFIG_MT_ENG_BUILD)
+#undef FEATURE_MET_MMC_INDEX
 #endif
 
 #ifdef MTK_MSDC_USE_CACHE
@@ -163,9 +172,11 @@ struct mmc_blk_data {
 };
 static bool emmc_sleep_failed=0;
 
-static int emmc_do_sleep_awake=0;
+static int emmc_do_sleep_awake;
 
+#if defined(FEATURE_MET_MMC_INDEX)
 static unsigned int met_mmc_bdnum;
+#endif
 
 #define DRV_NAME                         "mtk-msdc"
 
@@ -1924,10 +1935,8 @@ static void msdc_tasklet_card(unsigned long arg)
 		host->mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
 	}
 #endif
-
-	/* remove ddr mode for emmc and sd */
-	/* if (hw->flags & MSDC_DDR)
-		host->mmc->caps |= MMC_CAP_UHS_DDR50 | MMC_CAP_1_8V_DDR; */
+	if (hw->flags & MSDC_DDR)
+		host->mmc->caps |= MMC_CAP_UHS_DDR50 | MMC_CAP_1_8V_DDR;
 	msdc_host_mode[host->id] = host->mmc->caps;
 	msdc_host_mode2[host->id] = host->mmc->caps2;
 	if ((hw->flags & MSDC_CD_PIN_EN) && inserted) {
@@ -2096,8 +2105,7 @@ static void msdc_select_clksrc(struct msdc_host *host, int clksrc)
 	}
 #endif
 #endif
-
-	/* set AHB clk 182M->273M */
+	/* set AHB clk 182->273M */
 	clkmux_sel(MT_MUX_MSDC50_0_hclk, 1, "msdc0");
 
 	host->hclk = hclks[clksrc];
@@ -2689,6 +2697,22 @@ static void msdc_pin_reset(struct msdc_host *host, int mode)
 		}
 	}
 }
+static void msdc_pin_reset_force(struct msdc_host *host, int mode)
+{
+	struct msdc_hw *hw = (struct msdc_hw *)host->hw;
+	void __iomem *base = host->base;
+	int pull = (mode == MSDC_PIN_PULL_UP) ? MSDC_GPIO_PULL_UP : MSDC_GPIO_PULL_DOWN;
+
+	/* Config reset pin */
+	if (hw->config_gpio_pin)	/* NULL */
+		hw->config_gpio_pin(MSDC_RST_PIN, pull);
+
+	if (mode == MSDC_PIN_PULL_UP) {
+		sdr_clr_bits(EMMC_IOCON, EMMC_IOCON_BOOTRST);
+	} else {
+		sdr_set_bits(EMMC_IOCON, EMMC_IOCON_BOOTRST);
+	}
+}
 
 static void msdc_set_power_mode(struct msdc_host *host, u8 mode)
 {
@@ -3109,7 +3133,7 @@ static void msdc_pm(pm_message_t state, void *data)
 	int evt = state.event;
 
 	msdc_ungate_clock(host);
-	if(host->hw->host_function == MSDC_EMMC)
+	if (host->hw->host_function == MSDC_EMMC)
 		emmc_do_sleep_awake = 1;
 
 	if (evt == PM_EVENT_SUSPEND || evt == PM_EVENT_USER_SUSPEND) {
@@ -3198,7 +3222,8 @@ static void msdc_pm(pm_message_t state, void *data)
 				mdelay(10);
 				msdc_restore_emmc_setting(host);
 				if(emmc_sleep_failed){
-					msdc_pin_reset(host, MSDC_PIN_PULL_DOWN);
+					msdc_pin_reset_force(host, MSDC_PIN_PULL_DOWN);
+					msdc_pin_reset_force(host, MSDC_PIN_PULL_UP);
 					mdelay(200);
 					mmc_card_clr_sleep(host->mmc->card);
 					host->mmc->pm_flags &=~MMC_PM_KEEP_POWER;
@@ -3214,7 +3239,8 @@ static void msdc_pm(pm_message_t state, void *data)
 				mdelay(10);
 				msdc_restore_emmc_setting(host);
 				if(emmc_sleep_failed){
-					msdc_pin_reset(host, MSDC_PIN_PULL_DOWN);
+					msdc_pin_reset_force(host, MSDC_PIN_PULL_DOWN);
+					msdc_pin_reset_force(host, MSDC_PIN_PULL_UP);
 					mdelay(200);
 					mmc_card_clr_sleep(host->mmc->card);
 					host->mmc->pm_flags &=~MMC_PM_KEEP_POWER;
@@ -3244,8 +3270,8 @@ end:
 	} else {
 		msdc_gate_clock(host, 1);
 	}
-	if(host->hw->host_function == MSDC_EMMC)
-		emmc_do_sleep_awake =0;
+	if (host->hw->host_function == MSDC_EMMC)
+		emmc_do_sleep_awake = 0;
 }
 
 static u64 msdc_get_user_capacity(struct msdc_host *host)
@@ -3454,12 +3480,13 @@ int msdc_get_cache_region(void)
 
 	if(!(host->mmc->caps2 & MMC_CAP2_CACHE_CTRL))
 		return 0;
-    if (host->mmc != NULL) {
-        mmc_claim_host(host->mmc);
-        if (!mmc_cache_ctrl(host->mmc, 1))
-            printk("[%s]: cache_size=%dKB, cache_ctrl=%d\n", __func__, (host->mmc->card->ext_csd.cache_size/8), host->mmc->card->ext_csd.cache_ctrl);
-        mmc_release_host(host->mmc);
-    }
+        
+        if (host->mmc != NULL) {
+            mmc_claim_host(host->mmc);
+            if (!mmc_cache_ctrl(host->mmc, 1))
+                printk("[%s]: cache_size=%dKB, cache_ctrl=%d\n", __func__, (host->mmc->card->ext_csd.cache_size/8), host->mmc->card->ext_csd.cache_ctrl);
+            mmc_release_host(host->mmc);
+        }
 
 	msdc_get_cache_region_func(host);
 #endif
@@ -3578,187 +3605,15 @@ static bool msdc_cal_offset(struct msdc_host *host)
 #endif
 #endif
 
-#ifdef SLT_DEVINFO_EMCP
-#include "../sltdevinfo/emi.h"
-#include <linux/dev_info.h>
-static char first_register = 0;
-extern char* saved_command_line;
-#endif
-
-
-int g_rom_size1 = 0;
-
 u64 msdc_get_capacity(int get_emmc_total)
 {
 	u64 user_size = 0;
 	u32 other_size = 0;
 	u64 total_size = 0;
 	int index = 0;
-
 	for (index = 0; index < HOST_MAX_NUM; ++index) {
 		if ((mtk_msdc_host[index] != NULL) && (mtk_msdc_host[index]->hw->boot)) {
 			user_size = msdc_get_user_capacity(mtk_msdc_host[index]);
-			g_rom_size1 = user_size/(1024*1024);
-			printk("%s, g_rom_size1 = %d \n", __func__, g_rom_size1);
-#if 0  //def SLT_DEVINFO_EMCP
-	     if( unlikely((index==0)&&(first_register==0))) {
-                 if(mtk_msdc_host[index]->mmc->card->type ==MMC_TYPE_MMC) { 
-                        int i = 0;
-                       unsigned int  ram_size;
-                        int rom_size;
-                        char *info;
-      
-                        first_register = 1;
-                        rom_size = user_size/1024/1024;
-
-                        for(i=0; i<num_of_emi_records; i++) {
-				     struct devinfo_struct *dev = (struct devinfo_struct*)kmalloc(sizeof(struct devinfo_struct), GFP_KERNEL);;
-                                switch (emi_settings[i].type) {
-			            case 0x0001:
-                                        dev->device_type =	"Discrete DDR1";
-                                        break;
-			            case 0x0002:
-                                        dev->device_type =	"Discrete LPDDR2";
-                                        break;
-			            case 0x0003:
-                                        dev->device_type =	"Discrete LPDDR3";
-                                        break;
-				     case 0x0004:
-                                        dev->device_type =	"Discrete PCDDR3";
-                                        break;
-			            case 0x0101:
-                                        dev->device_type =	"MCP(NAND+DDR1)";
-                                        break;
-			            case 0x0102:
-                                        dev->device_type =	"MCP(NAND+DDR2)";
-                                        break;
-			            case 0x0103:
-                                        dev->device_type =	"MCP(NAND+DDR3)";
-                                        break;
-			            case 0x0201:
-                                        dev->device_type =	"MCP(eMMC+DDR1)";
-                                        break;
-			            case 0x0202:
-                                        dev->device_type =	"MCP(eMMC+DDR2)";
-                                        break;
-			            case 0x0203:
-                                        dev->device_type =	"MCP(eMMC+DDR3)";
-                                        break;
-			            default:
-                                        dev->device_type =	"unknow";
-                                        break;
-		                   }
-
-                                 if( (emi_settings[i].DEVINFO_MCP[0] == 'H') && (emi_settings[i].DEVINFO_MCP[1] == '9' )){
-						   dev->device_vendor	 = 	"Hynix";
-                                 	}else if ( (emi_settings[i].DEVINFO_MCP[0] == 'K' )&& (emi_settings[i].DEVINFO_MCP[1] == 'M')) {
-                                     	    dev->device_vendor	 = 	"Samsung";
-                                 	}else if ( (emi_settings[i].DEVINFO_MCP[0] == 'E' )&& (emi_settings[i].DEVINFO_MCP[1] == 'D')) {
-                                       	   dev->device_vendor	 = 	"Elpida"; 
-                                 }else {
-                                       	   dev->device_vendor	 = 	"unknow"; 
-                                 	}
-    			
-		                   ram_size = (unsigned long  )(emi_settings[i].DRAM_RANK_SIZE[0] /(1024*1024) + emi_settings[i].DRAM_RANK_SIZE[1]/(1024*1024)
-		                                          + emi_settings[i].DRAM_RANK_SIZE[2] /(1024*1024)+ emi_settings[i].DRAM_RANK_SIZE[3]/(1024*1024));
-#if 0
-		                   //Check if used on this board
-		                   if((emi_settings[i].ID[0]==(mtk_msdc_host[index]->mmc->card->raw_cid[0]&0xFF000000)>>24) &&
-		                       (emi_settings[i].ID[1]==(mtk_msdc_host[index]->mmc->card->raw_cid[0]&0x00FF0000)>>16) && 
-		                       (emi_settings[i].ID[2]==(mtk_msdc_host[index]->mmc->card->raw_cid[0]&0x0000FF00)>>8) &&
-		                       (emi_settings[i].ID[3]==(mtk_msdc_host[index]->mmc->card->raw_cid[0]&0x000000FF)>>0)) {
-                                          info = kmalloc(64,GFP_KERNEL);
-						  switch(ram_size) {
-		                             case 2048:
-                                                  sprintf(info,"ram:2048MB+rom:%dMB",rom_size);
-                                                  break;
-		                             case 1536:
-                                                  sprintf(info,"ram:1536MB+rom:%dMB",rom_size);
-                                                  break;
-		                             case 1024:
-                                                  sprintf(info,"ram:1024MB+rom:%dMB",rom_size);
-                                                  break;
-		                             case 768:
-                                                  sprintf(info,"ram:768 MB+rom:%dMB",rom_size);
-                                                  break;
-		                             case 512:
-                                                  sprintf(info,"ram:512 MB+rom:%dMB",rom_size);
-                                                  break;
-		                             default:
-                                                  sprintf(info,"ram:512 MB+rom:%dMB",rom_size);
-                                                  break;
-                                           }
-                                           dev->device_info = info;
-                                  }else{
-		                             switch(ram_size) {
-		                             case 2048:
-                                                 dev->device_info ="ram:2048MB";
-                                                 break;
-                                          case 1536:
-                                                 dev->device_info ="ram:1536MB";
-                                                 break;
-                                          case 1024:
-                                                 dev->device_info ="ram:1024MB";
-                                                 break;
-                                          case 768:
-                                                 dev->device_info ="ram:768 MB";
-                                                 break;
-                                          case 512:
-                                                 dev->device_info ="ram:512 MB";
-                                                 break;
-                                          default:
-                                                 dev->device_info ="ram:1024 MB";
-                                                 break;
-                                        }
-		                   }
-#endif
-
-                                   info = kmalloc(32,GFP_KERNEL);
-					  switch(ram_size) {
-	                             case 2048:
-                                              sprintf(info,"ram:2048MB+rom:%dMB",rom_size);
-                                              break;
-	                             case 1536:
-                                              sprintf(info,"ram:1536MB+rom:%dMB",rom_size);
-                                              break;
-	                             case 1024:
-                                              sprintf(info,"ram:1024MB+rom:%dMB",rom_size);
-                                              break;
-	                             case 768:
-                                              sprintf(info,"ram:768 MB+rom:%dMB",rom_size);
-                                              break;
-	                             case 512:
-                                              sprintf(info,"ram:512 MB+rom:%dMB",rom_size);
-                                              break;
-	                             default:
-                                              sprintf(info,"ram:1024 MB+rom:%dMB",rom_size);
-                                              break;
-                                  }
-                                  dev->device_info = info;
-#ifdef  LCT_MEMORY_COMBO_DDR						  
-					if(ram_num == i ){
-				             dev->device_used = DEVINFO_USED;
-				       }else{
-					      dev->device_used = DEVINFO_UNUSED;	
-					}
- #else 
-				      if(0 == i ){
-				             dev->device_used = DEVINFO_USED;
-				       }else{
-					      dev->device_used = DEVINFO_UNUSED;	
-					}
-#endif
-
-		                   dev->device_version = DEVINFO_NULL;
-  				     dev->device_module = DEVINFO_NULL;     
-                                dev->device_ic= emi_settings[i].DEVINFO_MCP;
-                                DEVINFO_CHECK_ADD_DEVICE(dev);
-	                    }	
-                   }else{
-                           printk("[DEVINFO_EMCP]msdc Not match!\n");
-                   }
-           }
-#endif	
 #ifdef CONFIG_MTK_EMMC_SUPPORT
 			if (get_emmc_total) {
 				if (mmc_card_mmc(mtk_msdc_host[index]->mmc->card))
@@ -3796,8 +3651,12 @@ static unsigned int msdc_command_start(struct msdc_host *host, struct mmc_comman
 	unsigned long tmo;
 	struct mmc_command *sbc = NULL;
 	
-	if (host->data && host->data->mrq && host->data->mrq->sbc && (host->autocmd & MSDC_AUTOCMD23))
-		sbc = host->data->mrq->sbc;
+#ifdef MTK_MSDC_USE_CACHE
+	if ((host->mmc->caps2 & MMC_CAP2_CACHE_CTRL) && (host->autocmd & MSDC_AUTOCMD23)) {
+		if (host->data && host->data->mrq && host->data->mrq->sbc)
+			sbc = host->data->mrq->sbc;
+	}
+#endif
 
 	/* Protocol layer does not provide response type, but our hardware needs
 	 * to know exact type, not just size!
@@ -3922,6 +3781,7 @@ static unsigned int msdc_command_start(struct msdc_host *host, struct mmc_comman
 			if (time_after(jiffies, tmo)) {
 				ERR_MSG("XXX cmd_busy timeout: before CMD<%d>", opcode);
 				cmd->error = (unsigned int)-ETIMEDOUT;
+				msdc_dump_register(host);
 				msdc_reset_hw(host->id);
 				return cmd->error;
 			}
@@ -3933,6 +3793,7 @@ static unsigned int msdc_command_start(struct msdc_host *host, struct mmc_comman
 			if (time_after(jiffies, tmo)) {
 				ERR_MSG("XXX sdc_busy timeout: before CMD<%d>", opcode);
 				cmd->error = (unsigned int)-ETIMEDOUT;
+				msdc_dump_register(host);
 				msdc_reset_hw(host->id);
 				return cmd->error;
 			}
@@ -4124,13 +3985,13 @@ static unsigned int msdc_command_resp_polling(struct msdc_host *host,
 			pr_err("[%s]: msdc%d XXX CMD<%d> MSDC_INT_RSPCRCERR Arg<0x%.8x>", __func__,
 				host->id, cmd->opcode, cmd->arg);
 			/* msdc_dump_info(host->id); */
-				if((host->hw->host_function != MSDC_SDIO) 
-						&& ((MMC_RSP_R1B == mmc_resp_type(cmd)) || (cmd->opcode == MMC_SEND_STATUS))) {
-					pr_err("[%s]: msdc%d XXX CMD<%d> ARG<0x%.8X> is R1B/CMD13, CRC not reset hw...\n",
-						__func__,host->id,cmd->opcode,cmd->arg);
-				} else {
-					msdc_reset_hw(host->id);
-				}
+			if ((host->hw->host_function != MSDC_SDIO)
+					&& ((MMC_RSP_R1B == mmc_resp_type(cmd)) || (cmd->opcode == MMC_SEND_STATUS))) {
+				pr_err("[%s]: msdc%d XXX CMD<%d> ARG<0x%.8X> is R1B/CMD13, CRC not reset hw...\n",
+					__func__, host->id, cmd->opcode, cmd->arg);
+			} else {
+				msdc_reset_hw(host->id);
+			}
 		} else if (intsts & MSDC_INT_CMDTMO) {
 			cmd->error = (unsigned int)-ETIMEDOUT;
 			pr_err("[%s]: msdc%d XXX CMD<%d> MSDC_INT_CMDTMO Arg<0x%.8x>", __func__,
@@ -4139,13 +4000,14 @@ static unsigned int msdc_command_resp_polling(struct msdc_host *host,
 				&& (cmd->opcode != 55) && (cmd->opcode != 1))
 				msdc_dump_info(host->id);
 			/*msdc_dump_info(host->id);*/
-			if((cmd->opcode == 5) && emmc_do_sleep_awake) {
+			if ((cmd->opcode == 5) && emmc_do_sleep_awake)
 				msdc_dump_info(host->id);
-			}
-			if((host->hw->host_function != MSDC_SDIO) 
-						&& ((MMC_RSP_R1B == mmc_resp_type(cmd)) || (cmd->opcode == MMC_SEND_STATUS))) {
+
+			if ((host->hw->host_function != MSDC_SDIO)
+						&& ((MMC_RSP_R1B == mmc_resp_type(cmd))
+						|| (cmd->opcode == MMC_SEND_STATUS))) {
 					pr_err("[%s]: msdc%d XXX CMD<%d> ARG<0x%.8X> is R1B/CMD13, CRC not reset hw...\n",
-						__func__,host->id,cmd->opcode,cmd->arg);
+						__func__, host->id, cmd->opcode, cmd->arg);
 			} else {
 					msdc_reset_hw(host->id);
 			}
@@ -4830,7 +4692,9 @@ static int msdc_dma_config(struct msdc_host *host, struct msdc_dma *dma)
 
 	switch (dma->mode) {
 	case MSDC_MODE_DMA_BASIC:
+#if defined(FEATURE_MET_MMC_INDEX)
 		met_mmc_bdnum = 1;
+#endif
 
 		if (host->hw->host_function == MSDC_SDIO) {
 			BUG_ON(dma->xfersz > 0xFFFFFFFF);
@@ -4860,7 +4724,9 @@ static int msdc_dma_config(struct msdc_host *host, struct msdc_dma *dma)
 		bd  = dma->bd;
 		bdlen = sglen;
 
+#if defined(FEATURE_MET_MMC_INDEX)
 		met_mmc_bdnum = bdlen;
+#endif
 
 		/* modify gpd */
 		/* gpd->intr = 0; */
@@ -6731,7 +6597,9 @@ static void msdc_post_req(struct mmc_host *mmc, struct mmc_request *mrq, int err
 
 }
 
+#if defined(FEATURE_MET_MMC_INDEX)
 extern void met_mmc_issue(struct mmc_host *host, struct mmc_request *req);
+#endif
 static int msdc_do_request_async(struct mmc_host*mmc, struct mmc_request*mrq)
 {
 	struct msdc_host *host = mmc_priv(mmc);
@@ -6891,7 +6759,9 @@ static int msdc_do_request_async(struct mmc_host*mmc, struct mmc_request*mrq)
 	//ERR_MSG("0.Power cycle enable(%d)",host->power_cycle_enable);
 	spin_unlock(&host->lock);
 
+#if defined(FEATURE_MET_MMC_INDEX)
 	met_mmc_issue(host->mmc, host->mrq);
+#endif
 
 #ifdef MTK_MSDC_USE_CMD23
 	/* for msdc use cmd23, but card not supported(sbc is NULL), need enable autocmd23 for next request */
@@ -7468,6 +7338,29 @@ static void emmc_hs400_restore(void)
 	}
 
 	return;
+}
+
+/*
+ *  2015-01-09
+ *  Runtime reducing to legacy speed or slower clock, clear eMMC ett timing
+ */
+static void emmc_clear_timing(void)
+{
+    int i = 0, err = 0;
+    void __iomem *base = 0;
+
+	if (!mtk_msdc_host[0]) {
+		pr_err("[%s] msdc%d is not exist\n", __func__, 0);
+		return;
+	}
+
+    pr_err("emmc_clear_timing msdc0\n");
+    for(i = 0; i < HS400_BACKUP_REG_NUM; i++)
+    {
+        sdr_set_field((hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base), hs400_backup_reg_list[i].mask,  hs400_backup_reg_list[i].default_value);
+    }
+
+    return;
 }
 
 /*
@@ -8876,6 +8769,12 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 		msdc_clock_src[host->id] = MSDC_CLKSRC_200MHZ;
 	}
+	
+	#ifdef CONFIG_MMC_FFU
+	if ( (state != MSDC_STATE_HS400) && (host->hw->host_function == MSDC_EMMC)) {
+		msdc_clock_src[host->id]= MSDC50_CLKSRC_200MHZ;
+	}
+	#endif
 #else
 	if (ios->timing == MMC_TIMING_UHS_DDR50) {
 		state = MSDC_STATE_DDR;
@@ -9111,6 +9010,16 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			if (state == MSDC_STATE_HS200)
 				msdc_apply_ett_settings(host, MSDC_HS200_MODE);
 		}
+
+#ifdef CONFIG_EMMC_50_FEATURE
+		#ifdef CONFIG_MMC_FFU
+		if ( (host->hw->host_function == MSDC_EMMC) &&
+		     ((state == MSDC_STATE_DEFAULT) && (ios->clock<=25000000)) ) {
+			emmc_clear_timing();
+		}
+		#endif
+#endif
+
 		msdc_set_mclk(host, state, ios->clock);
 	}
 #if 0				/* PM Resume -> set 0 -> 260KHz */
@@ -9519,7 +9428,9 @@ static void msdc1_eint_handler(void)
 #endif
 #endif
 
-//extern void met_mmc_dma_stop(struct mmc_host *host, struct mmc_async_req *areq, unsigned int bd_num);
+#if defined(FEATURE_MET_MMC_INDEX)
+extern void met_mmc_dma_stop(struct mmc_host *host, u32 lba, unsigned int len, u32 opcode, unsigned int bd_num);
+#endif
 
 static irqreturn_t msdc_irq(int irq, void *dev_id)
 {
@@ -9650,7 +9561,11 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 					complete(&host->xfer_done);
 				}
 
-//				met_mmc_dma_stop(host->mmc, host->mmc->areq, met_mmc_bdnum);
+#if defined(FEATURE_MET_MMC_INDEX)
+				if ((data->mrq != NULL) && (data->mrq->cmd != NULL)) {
+					met_mmc_dma_stop(host->mmc, data->mrq->cmd->arg, data->blocks, data->mrq->cmd->opcode, met_mmc_bdnum);
+				}
+#endif
 			}
 		} else
 #endif
@@ -9669,7 +9584,11 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 					complete(&host->xfer_done);
 				}
 
-//				met_mmc_dma_stop(host->mmc, host->mmc->areq, met_mmc_bdnum);
+#if defined(FEATURE_MET_MMC_INDEX)
+				if ((data->mrq != NULL) && (data->mrq->cmd != NULL)) {
+					met_mmc_dma_stop(host->mmc, data->mrq->cmd->arg, data->blocks, data->mrq->cmd->opcode, met_mmc_bdnum);
+				}
+#endif
 
 				if (host->hw->host_function == MSDC_SD)
 					host->continuous_fail_request_count = 0;
@@ -10743,10 +10662,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 		mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
 	}
 #endif
-
-	/* remove ddr mode for emmc and sd */
-	/* if(hw->flags & MSDC_DDR)
-		mmc->caps |= MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR; */
+	if(hw->flags & MSDC_DDR)
+		mmc->caps |= MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR;
 	if(!(hw->flags & MSDC_REMOVABLE))
 		mmc->caps |= MMC_CAP_NONREMOVABLE;
 	//else
@@ -10803,6 +10720,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	host->power_mode     = MMC_POWER_OFF;
 	host->power_control  = NULL;
 	host->power_switch   = NULL;
+	host->dma_mask = DMA_BIT_MASK(33);
+	mmc_dev(mmc)->dma_mask = &host->dma_mask;
 #ifdef SDIO_ERROR_BYPASS
 	host->sdio_error = 0;
 #endif

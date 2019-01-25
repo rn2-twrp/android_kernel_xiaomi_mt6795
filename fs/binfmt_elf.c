@@ -38,6 +38,10 @@
 #include <asm/param.h>
 #include <asm/page.h>
 
+#ifdef CONFIG_MTK_EXTMEM
+#include <linux/exm_driver.h>
+#endif
+
 #ifndef user_long_t
 #define user_long_t long
 #endif
@@ -552,11 +556,12 @@ out:
 
 static unsigned long randomize_stack_top(unsigned long stack_top)
 {
-	unsigned int random_variable = 0;
+	unsigned long random_variable = 0;
 
 	if ((current->flags & PF_RANDOMIZE) &&
 		!(current->personality & ADDR_NO_RANDOMIZE)) {
-		random_variable = get_random_int() & STACK_RND_MASK;
+		random_variable = (unsigned long) get_random_int();
+		random_variable &= STACK_RND_MASK;
 		random_variable <<= PAGE_SHIFT;
 	}
 #ifdef CONFIG_STACK_GROWSUP
@@ -1097,11 +1102,6 @@ out:
  * Jeremy Fitzhardinge <jeremy@sw.oz.au>
  */
 
-#ifdef CONFIG_MTK_EXTMEM
-extern bool extmem_in_mspace(struct vm_area_struct *vma);
-extern unsigned long get_virt_from_mspace(unsigned long pa);
-#endif
-
 /*
  * The purpose of always_dump_vma() is to make sure that special kernel mappings
  * that are useful for post-mortem analysis are included in every core dump.
@@ -1123,10 +1123,10 @@ static bool always_dump_vma(struct vm_area_struct *vma)
 		return true;
 
 #ifdef CONFIG_MTK_EXTMEM
-	if (extmem_in_mspace(vma)) {
+	if (extmem_in_mspace(vma))
 		return true;
-	}	
 #endif
+
 	return false;
 }
 
@@ -2213,10 +2213,11 @@ static int elf_core_dump(struct coredump_params *cprm)
 			for (addr = vma->vm_start; addr < end; addr += PAGE_SIZE, extmem_va += PAGE_SIZE) {
 				int stop;
 				int dump_write_ret = dump_write(cprm->file, extmem_va, PAGE_SIZE);
+
 				stop = ((size += PAGE_SIZE) > cprm->limit) || (!dump_write_ret);
 				if (stop) {
-					printk(KERN_WARNING "[EXT_MEM]stop addr:0x%lx, size:%zx, limit:0x%lx, dump_write_ret:%d\n", 
-							addr, size, cprm->limit, dump_write_ret);
+					pr_err("[EXT_MEM]stop addr:0x%lx, size:%zx, limit:0x%lx, dump_write_ret:%d\n", 
+						addr, size, cprm->limit, dump_write_ret);
 					goto end_coredump;
 				}
 			}

@@ -1231,7 +1231,7 @@ static int touch_event_handler(void *unused)
         if ( (buf_status&0x30) != 0x20 )        //data not ready£¬so return
         {
             TPD_DEBUG("[mtk-tpd] STATUS : %x\n", buffer[0]);
-            TPD_DMESG("[mtk-tpd] data not ready return \n");
+            TPD_DEBUG("[mtk-tpd] data not ready return \n");
 			//tpd_reset_fuc(i2c_client);
             i2c_write_dummy( i2c_client, TPD_HANDSHAKING_END_REG );  //kuuga  add 11082401
             continue;

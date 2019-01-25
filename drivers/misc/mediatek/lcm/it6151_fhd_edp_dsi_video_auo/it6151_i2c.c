@@ -18,7 +18,6 @@
 #include <linux/hwmsen_dev.h>
 #include <linux/sensors_io.h>
 #include <linux/hwmsen_helper.h>
-#include <linux/xlog.h>
 
 
 #include <mach/mt_typedefs.h>
@@ -70,7 +69,7 @@ UINT8 it6151_reg_i2c_read (struct i2c_client *client,UINT8 RegOffset)
 {
     UINT8 Readnum;
 	Readnum = i2c_smbus_read_byte_data(client,RegOffset);
-	printk("[6151]client:%s , read RegOffset=0x%x,Readnum=0x%x \n", client->name, RegOffset, Readnum);
+	pr_debug("[6151]client:%s , read RegOffset=0x%x,Readnum=0x%x \n", client->name, RegOffset, Readnum);
 	return Readnum;
 }
 
@@ -82,7 +81,7 @@ UINT8 it6151_reg_i2c_read_byte(U8 dev_addr,U8  *cmdBuffer, U8 *dataBuffer)
 	else if(dev_addr == it6151_1->addr)
 	       RetVal = it6151_reg_i2c_read(it6151_1, *cmdBuffer);
 	else
-	       printk("[it6151_reg_i2c_read_byte]error:  no this dev_addr \n");
+	       pr_debug("[it6151_reg_i2c_read_byte]error:  no this dev_addr \n");
 	       
 	return RetVal;
 }
@@ -91,7 +90,7 @@ void it6151_reg_i2c_write (struct i2c_client *client,UINT8 RegOffset, UINT8 Data
 {
 	i2c_smbus_write_byte_data(client, RegOffset, Data);
 
-	printk("[6151]client:%s , write RegOffset=0x%x,Data=0x%x \n", client->name, RegOffset, Data);
+	pr_debug("[6151]client:%s , write RegOffset=0x%x,Data=0x%x \n", client->name, RegOffset, Data);
 }
 
 void it6151_reg_i2c_write_byte(U8 dev_addr,U8  cmd, U8 data)
@@ -116,7 +115,7 @@ void it6151_reg_i2c_write_byte(U8 dev_addr,U8  cmd, U8 data)
 	       i2c_master_send(it6151_1, write_data, 2);
 	}
 	else
-	       printk("[it6151_reg_i2c_read_byte]error:  no this dev_addr \n");
+	       pr_debug("[it6151_reg_i2c_read_byte]error:  no this dev_addr \n");
 
 }
 
@@ -164,7 +163,7 @@ static int it6151_i2c_probe(struct i2c_client *client,
 			return -EIO;
 		}
 	
-	printk("[it6151_i2c_probe] Suss \n");
+	pr_debug("[it6151_i2c_probe] Suss \n");
 	return ret;
 
 exit:
@@ -185,20 +184,17 @@ static int __init it6151_i2c_init(void)
 {    
    // int ret=0;  //fixed for build warning
     
-    //battery_xlog_printk(BAT_LOG_CRTI,"[it6151_i2c_init] init start\n");
-    printk("[it6151_i2c_init] init start\n");
+    pr_debug("[it6151_i2c_init] init start\n");
     
     i2c_register_board_info(it6151_BUSNUM, it6151_i2c, 2);
 
     if(i2c_add_driver(&it6151_i2c_driver)!=0)
     {
-        //battery_xlog_printk(BAT_LOG_CRTI,"[it6151_i2c_init] failed to register it6151 i2c driver.\n");
-        printk("[it6151_i2c_init] failed to register it6151 i2c driver.\n");
+        pr_debug("[it6151_i2c_init] failed to register it6151 i2c driver.\n");
     }
     else
     {
-        //battery_xlog_printk(BAT_LOG_CRTI,"[it6151_i2c_init] Success to register it6151 i2c driver.\n");
-        printk("[it6151_i2c_init] Success to register it6151 i2c driver.\n");
+        pr_debug("[it6151_i2c_init] Success to register it6151 i2c driver.\n");
     }
 
     return 0;        

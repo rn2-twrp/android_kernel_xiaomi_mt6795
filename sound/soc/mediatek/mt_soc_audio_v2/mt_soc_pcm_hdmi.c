@@ -624,12 +624,14 @@ static int mtk_pcm_hdmi_hw_params(struct snd_pcm_substream *substream,
         runtime->dma_bytes = HDMI_dma_buf->bytes;
         runtime->dma_area = HDMI_dma_buf->area;
         runtime->dma_addr = HDMI_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_HDMI,true);
         runtime->buffer_size = HDMI_dma_buf->bytes;
 #else
         runtime->dma_area = (unsigned char *)Get_Afe_SramBase_Pointer();
         runtime->dma_addr = AFE_INTERNAL_SRAM_PHY_BASE;
         runtime->dma_bytes = params_buffer_bytes(hw_params);
         runtime->buffer_size = runtime->dma_bytes;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_HDMI,false);
 #endif
 
     }

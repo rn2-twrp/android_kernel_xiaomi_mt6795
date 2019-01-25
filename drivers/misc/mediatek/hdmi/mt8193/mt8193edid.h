@@ -1,8 +1,6 @@
 #ifndef __mt8193edid_h__
 #define __mt8193edid_h__
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
-
-
+#ifdef HDMI_MT8193_SUPPORT
 
 typedef enum {
 	AVD_BITS_NONE = 0,
@@ -309,5 +307,7 @@ extern void vClearEdidInfo(void);
 extern void mt8193_AppGetEdidInfo(HDMI_EDID_INFO_T *pv_get_info);
 extern u8 vCheckPcmBitSize(u8 ui1ChNumInx);
 extern u8 mt8193_Check_EdidHeader(void);
+extern void hdmi_show_def_info(void);
+
 #endif
 #endif

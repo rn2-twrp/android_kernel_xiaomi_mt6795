@@ -86,6 +86,7 @@ typedef enum {
     GYRO_TRC_CALI	= 0X08,
     GYRO_TRC_INFO	= 0X10,
     GYRO_TRC_DATA	= 0X20,
+	GYRO_TRC_LP	= 0x80,
 } GYRO_TRC;
 /*----------------------------------------------------------------------------*/
 struct scale_factor{
@@ -322,6 +323,19 @@ static int MPU3000_ReadStart(struct i2c_client *client, bool enable)
 
 
 //----------------------------------------------------------------------------//
+static void MPU3000_GetPowerMode(struct i2c_client *client)
+{
+	u8 databuf[2] = {0};
+	int res = 0;
+
+	if (hwmsen_read_byte(client, MPU3000_REG_PWR_CTL, databuf)) {
+		GYRO_ERR("read power ctl register err!\n");
+	} else {
+		GYRO_ERR("reg[0x%x] = 0x%x, bit[6] should be 1. (%c)\n",
+			MPU3000_REG_PWR_CTL, databuf[0], (databuf[0]&0x40) == 0x40?'O':'X');
+	}
+}
+/*----------------------------------------------------------------------------*/
 static int MPU3000_SetPowerMode(struct i2c_client *client, bool enable)
 {
 	u8 databuf[2] = {0};    
@@ -1395,6 +1409,9 @@ static int mpu3000_suspend(struct i2c_client *client, pm_message_t msg)
 			return err;
 		}
 	}
+	if (atomic_read(&obj->trace) & GYRO_TRC_LP) {
+	    MPU3000_GetPowerMode(client);
+	}
 	return 0;//modified
 }
 /*----------------------------------------------------------------------------*/
@@ -1411,6 +1428,9 @@ static int mpu3000_resume(struct i2c_client *client)
 	}
 
 	MPU3000_power(obj->hw, 1);
+	if (atomic_read(&obj->trace) & GYRO_TRC_LP) {
+		MPU3000_GetPowerMode(client);
+	}
 	err = mpu3000_init_client(client, false);
 	if(err)
 	{
@@ -1453,7 +1473,9 @@ static void mpu3000_early_suspend(struct early_suspend *h)
 	}
 
 	sensor_power = false;
-	
+	if (atomic_read(&obj->trace) & GYRO_TRC_LP) {
+		MPU3000_GetPowerMode(obj->client);
+	}
 	MPU3000_power(obj->hw, 0);
 }
 /*----------------------------------------------------------------------------*/
@@ -1470,6 +1492,9 @@ static void mpu3000_late_resume(struct early_suspend *h)
 	}
 
 	MPU3000_power(obj->hw, 1);
+	if (atomic_read(&obj->trace) & GYRO_TRC_LP) {
+		MPU3000_GetPowerMode(obj->client);
+	}
 	err = mpu3000_init_client(obj->client, false);
 	if(err)
 	{

@@ -7,7 +7,7 @@ config ARM
 	select ARCH_SUPPORTS_ATOMIC_RMW
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
 	select ARCH_WANT_IPC_PARSE_VERSION
-	select ARM_HAS_SG_CHAIN if (ARCH_MT6589 || ARCH_MT6582 || ARCH_MT6572 || ARCH_MT8135 || ARCH_MT6595 || ARCH_MT6795 || ARCH_MT6752 || ARCH_MT6735 || ARCH_MT6735M || ARCH_MT6753 || ARCH_MT8127)
+	select ARM_HAS_SG_CHAIN if (ARCH_MT6580 || ARCH_MT6589 || ARCH_MT6582 || ARCH_MT6572 || ARCH_MT8135 || ARCH_MT6595 || ARCH_MT6795 || ARCH_MT6752 || ARCH_MT6735 || ARCH_MT6735M || ARCH_MT6753 || ARCH_MT8127  || ARCH_MT8163 || ARCH_MT2601)
 	select BUILDTIME_EXTABLE_SORT if MMU
 	select CPU_PM if (SUSPEND || CPU_IDLE)
 	select DCACHE_WORD_ACCESS if (CPU_V6 || CPU_V6K || CPU_V7) && !CPU_BIG_ENDIAN && MMU
@@ -63,7 +63,7 @@ config ARM
 	select OLD_SIGSUSPEND3
 	select OLD_SIGACTION
 	select HAVE_CONTEXT_TRACKING
-	select CRYPTO_AES_ARM if (ARCH_MT6752)
+	select CRYPTO_AES_ARM if (ARCH_MT6752 || ARCH_MT6735 || ARCH_MT6735M || ARCH_MT6753 || ARCH_MT8163)
 	help
 	  The ARM series is a line of low-power-consumption RISC chip designs
 	  licensed by ARM Ltd and targeted at embedded applications and
@@ -646,8 +646,24 @@ config ARCH_MT6572
 	select HAVE_SMP
 	select NEED_MACH_MEMORY_H
 	select VFP_OPT
+	select KERNEL_MODE_NEON
+	select CRYPTO_AES_ARM_BS	
 	help
 	  This enable support for MediaTek MT6572
+
+config ARCH_MT2601
+	bool "MediaTek MT2601"
+	select MEDIATEK_SOLUTION
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select ARCH_HAS_CPUFREQ
+	select ARM_AMBA
+	select CPU_V7
+	select HAVE_SMP
+	select NEED_MACH_MEMORY_H
+	select VFP_OPT
+	help
+	  This enable support for MediaTek MT2601
 
 config ARCH_MT6595
 	bool "MediaTek MT6595"
@@ -685,11 +701,12 @@ config ARCH_MT6582
 	select NEED_MACH_MEMORY_H
 	select L1C_OPT
 	select VFP_OPT
-	select HAVE_TRUSTONIC_TEE_SUPPORT
 	select MTK_CPU_STRESS
 	select MTK_DBG_DUMP
 	select MTK_KERNEL_IN_SECURE_MODE if ((!TRUSTONIC_TEE_SUPPORT) && (!ARM_PSCI))
 	select FIQ_GLUE if TRUSTONIC_TEE_SUPPORT
+	select KERNEL_MODE_NEON
+	select CRYPTO_AES_ARM_BS
 	help
 	  This enable support for MediaTek MT6582.
 
@@ -704,8 +721,11 @@ config ARCH_MT6592
 	select NEED_MACH_MEMORY_H
 	select ARM_HAS_SG_CHAIN
 	select VFP_OPT
-	select HAVE_TRUSTONIC_TEE_SUPPORT
 	select L1C_OPT
+	select MTK_DBG_DUMP
+	select KERNEL_MODE_NEON
+	select CRYPTO_AES_ARM_BS
+	select MTK_DBG_DUMP
 	help
 	  This enable support for MediaTek MT6592.
 
@@ -724,6 +744,9 @@ config ARCH_MT6735
 	select VFP_OPT
 	select MTK_SYSTRACKER
 	select MTK_SYS_CIRQ
+	select MTK_EIC
+	select COMMON_CLK if !MTK_CLKMGR
+	select CPU_IDLE if !MTK_LEGACY
 	help
 	  This enable support for MediaTek MT6735
 
@@ -741,6 +764,9 @@ config ARCH_MT6735M
 	select GENERIC_SCHED_CLOCK
 	select VFP_OPT
 	select MTK_SYSTRACKER
+	select MTK_SYS_CIRQ
+	select MTK_EIC
+	select CPU_IDLE if !MTK_LEGACY
 	help
 	  This enable support for MediaTek MT6735M
 
@@ -758,6 +784,9 @@ config ARCH_MT6753
 	select GENERIC_SCHED_CLOCK
 	select VFP_OPT
 	select MTK_SYSTRACKER
+	select MTK_SYS_CIRQ
+	select MTK_EIC
+	select CPU_IDLE if !MTK_LEGACY
 	help
 	  This enable support for MediaTek MT6753
 
@@ -781,8 +810,32 @@ config ARCH_MT6752
 	select ARCH_REQUIRE_GPIOLIB
 	select MTK_EIC
 	select MTK_ETM
+	select MTK_SYS_CIRQ
 	help
 	  This enable support for MediaTek MT6752
+
+config ARCH_MT8163
+	bool "MediaTek MT8163"
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select ARCH_HAS_CPUFREQ
+	select ARM_AMBA
+	select CPU_V7
+	select HAVE_SMP
+	select NEED_MACH_MEMORY_H
+	select IRQ_DOMAIN
+	select IRQ_DOMAIN_DEBUG
+	select GENERIC_SCHED_CLOCK
+	select VFP_OPT
+	select MTK_SYSTRACKER
+	select MTK_L2C_SHARE
+	select ARM_ERRATA_824069
+	select ARM_ERRATA_826319
+	select ARCH_REQUIRE_GPIOLIB
+	select MTK_EIC
+	select MTK_ETM
+	help
+	  This enable support for MediaTek MT8163
 
 config ARCH_MT6795
 	bool "MediaTek MT6795"
@@ -817,9 +870,39 @@ config ARCH_MT8127
 	select IRQ_DOMAIN_DEBUG
 	select ARCH_REQUIRE_GPIOLIB
 	select VFP_OPT
+	select KERNEL_MODE_NEON
+	select CRYPTO_AES_ARM_BS	
 	select HAVE_MTK_IN_HOUSE_TEE_SUPPORT
 	help
 	  This enable support for MediaTek MT8127
+
+config ARCH_MT6580
+    bool "MediaTek MT6580"
+    select GENERIC_TIME
+    select GENERIC_CLOCKEVENTS
+    select ARCH_HAS_CPUFREQ
+    select ARM_AMBA
+    select CPU_V7
+    select FIQ_GLUE if !TRUSTONIC_TEE_SUPPORT
+    select HAVE_SMP
+    select NEED_MACH_MEMORY_H
+    select IRQ_DOMAIN
+    select IRQ_DOMAIN_DEBUG
+    select GENERIC_SCHED_CLOCK
+    select VFP_OPT
+    select ARM_ERRATA_824069
+    select ARM_ERRATA_826319
+    select ARCH_REQUIRE_GPIOLIB
+    select MTK_CPU_STRESS
+    select MTK_LASTPC
+    select KERNEL_MODE_NEON
+    select CRYPTO_AES_ARM_BS
+    select MTK_SYS_CIRQ
+    select MTK_EIC
+    select MTK_SYSTRACKER_V2
+    help
+      This enable support for MediaTek MT6580
+
 
 config ARCH_SHMOBILE
 	bool "Renesas SH-Mobile / R-Mobile"
@@ -1142,6 +1225,26 @@ source "arch/arm/mach-kirkwood/Kconfig"
 source "arch/arm/mach-ks8695/Kconfig"
 
 source "arch/arm/mach-msm/Kconfig"
+
+if ARCH_MT6572
+#source "arch/arm/mach-mt6572/Kconfig"
+endif
+
+if ARCH_MT2601
+#source "arch/arm/mach-mt2601/Kconfig"
+endif
+
+if ARCH_MT6582
+#source "arch/arm/mach-mt6582/Kconfig"
+endif
+
+if ARCH_MT6592
+#source "arch/arm/mach-mt6592/Kconfig"
+endif
+
+if ARCH_MT8127
+#source "arch/arm/mach-mt8127/Kconfig"
+endif
 
 source "drivers/misc/mediatek/mach/Kconfig"
 
@@ -1577,7 +1680,7 @@ config ARM_ERRATA_831171
 	def_bool n
 	depends on CPU_V7 && SMP
 	help
-	  ARM errata: Within rare timing constraints, a DSB following a TLB or ICache invalidation might complete 
+	  ARM errata: Within rare timing constraints, a DSB following a TLB or ICache invalidation might complete
 	  before the TLB or ICache invalidation has effectively completed on other CPUs within the cluster
 	  The software workaround is to issue the TLB or ICache maintenance invalidation twice before the DSB
 
@@ -1585,14 +1688,14 @@ config ARM_ERRATA_824069
 	def_bool n
 	depends on SMP
 	help
-	  This option enables the workaround for erratum 824069 
-	  affecting Cortex-A53 MPCore with two or more processors (r0p0..r0p2). 
+	  This option enables the workaround for erratum 824069
+	  affecting Cortex-A53 MPCore with two or more processors (r0p0..r0p2).
 	  If a Cortex-A53 processor is executing a store or PLDW instruction at the same time
 	  as a processor in another cluster is executing a cache maintenance operation
 	  to the same address, then this erratum might cause a clean cache line to be
 	  incorrectly marked as dirty. This workaround replaces all cache clean opeartion
 	  to clean & invalidate.
-							        
+
 config ARM_ERRATA_826319
 	def_bool n
 	depends on SMP
@@ -1881,13 +1984,13 @@ config HMP_PACK_BUDDY_INFO
 	depends on SCHED_HMP_ENHANCEMENT && HMP_PACK_SMALL_TASK
 	help
 		This option enables Packing Small Tasks Buddy Information Log
-    
+
 config HMP_LAZY_BALANCE
 	bool "(EXPERIMENTAL) Lazy Balance"
 	depends on SCHED_HMP_ENHANCEMENT && HMP_PACK_SMALL_TASK
 	help
 		This option enables Lazy Balance
-    
+
 config HMP_POWER_AWARE_CONTROLLER
 	bool "(EXPERIMENTAL) Power-aware Scheduler for b.L MP Controller"
 	depends on SCHED_HMP_ENHANCEMENT && HMP_PACK_SMALL_TASK && HMP_LAZY_BALANCE
@@ -1898,7 +2001,7 @@ config HEVTASK_INTERFACE
 	bool "task status interface"
 	help
 	  The option provide an interface to show task status
-	  
+
 config ARCH_SCALE_INVARIANT_CPU_CAPACITY
        bool "(EXPERIMENTAL) Scale-Invariant CPU Compute Capacity Recording"
        depends on CPU_FREQ
@@ -1991,7 +2094,7 @@ config LOCAL_TIMERS
 	bool "Use local timer interrupts"
 	depends on SMP
 	default y
-	select HAVE_ARM_TWD if (!ARCH_MSM_SCORPIONMP && !EXYNOS4_MCT && !ARCH_MT6589 && !ARCH_MT6582 && !ARCH_MT8135 && !ARCH_MT6592 && !ARCH_MT6595 && !ARCH_MT6795 && !ARCH_MT6752 && !ARCH_MT8127 && !ARCH_MT6572 && !ARCH_MT6735 && !ARCH_MT6735M && !ARCH_MT6753)
+	select HAVE_ARM_TWD if (!ARCH_MSM_SCORPIONMP && !EXYNOS4_MCT && !ARCH_MT6589 && !ARCH_MT6582 && !ARCH_MT8135 && !ARCH_MT6592 && !ARCH_MT6595 && !ARCH_MT6795 && !ARCH_MT6752 && !ARCH_MT8127 && !ARCH_MT6572 && !ARCH_MT6735 && !ARCH_MT6735M && !ARCH_MT6753 && !ARCH_MT8163 && !ARCH_MT6580 && !ARCH_MT2601)
 	help
 	  Enable support for local timers on SMP platforms, rather then the
 	  legacy IPI broadcast method.  Local timers allows the system
@@ -2664,6 +2767,13 @@ config NEON
 	help
 	  Say Y to include support code for NEON, the ARMv7 Advanced SIMD
 	  Extension.
+
+config KERNEL_MODE_NEON
+	bool "Support for NEON in kernel mode"
+	default n
+	depends on NEON
+	help
+	  Say Y to include support for NEON in kernel mode.
 
 endmenu
 

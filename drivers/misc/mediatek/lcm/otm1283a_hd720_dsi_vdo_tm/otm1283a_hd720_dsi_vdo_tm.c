@@ -20,7 +20,7 @@
 #ifdef BUILD_LK
 #define LCD_DEBUG(fmt)  dprintf(CRITICAL,fmt)
 #else
-#define LCD_DEBUG(fmt)  printk(fmt)
+#define LCD_DEBUG(fmt)  pr_debug(fmt)
 #endif
 
 
@@ -115,8 +115,8 @@ static struct i2c_driver tps65132_iic_driver = {
  *****************************************************************************/ 
 static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {  
-	printk( "tps65132_iic_probe\n");
-	printk("TPS: info==>name=%s addr=0x%x\n",client->name,client->addr);
+	pr_debug( "tps65132_iic_probe\n");
+	pr_debug("TPS: info==>name=%s addr=0x%x\n",client->name,client->addr);
 	tps65132_i2c_client  = client;		
 	return 0;      
 }
@@ -124,7 +124,7 @@ static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id 
 
 static int tps65132_remove(struct i2c_client *client)
 {  	
-  printk( "tps65132_remove\n");
+  pr_debug( "tps65132_remove\n");
   tps65132_i2c_client = NULL;
    i2c_unregister_device(client);
   return 0;
@@ -140,7 +140,7 @@ static int tps65132_remove(struct i2c_client *client)
 	write_data[1] = value;
     ret=i2c_master_send(client, write_data, 2);
 	if(ret<0)
-	printk("tps65132 write data fail !!\n");	
+	pr_debug("tps65132 write data fail !!\n");	
 	return ret ;
 }
 EXPORT_SYMBOL_GPL(tps65132_write_bytes);
@@ -154,17 +154,17 @@ EXPORT_SYMBOL_GPL(tps65132_write_bytes);
 static int __init tps65132_iic_init(void)
 {
 
-   printk( "tps65132_iic_init\n");
+   pr_debug( "tps65132_iic_init\n");
    i2c_register_board_info(TPS_I2C_BUSNUM, &tps65132_board_info, 1);
-   printk( "tps65132_iic_init2\n");
+   pr_debug( "tps65132_iic_init2\n");
    i2c_add_driver(&tps65132_iic_driver);
-   printk( "tps65132_iic_init success\n");	
+   pr_debug( "tps65132_iic_init success\n");	
    return 0;
 }
 
 static void __exit tps65132_iic_exit(void)
 {
-  printk( "tps65132_iic_exit\n");
+  pr_debug( "tps65132_iic_exit\n");
   i2c_del_driver(&tps65132_iic_driver);  
 }
 
@@ -406,9 +406,9 @@ static void lcm_init_power(void)
 #ifdef BUILD_LK
 	mt6325_upmu_set_rg_vgp1_en(1);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6325_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -419,9 +419,9 @@ static void lcm_suspend_power(void)
 #ifdef BUILD_LK
 	mt6325_upmu_set_rg_vgp1_en(0);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerDown(MT6325_POWER_LDO_VGP1, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -432,9 +432,9 @@ static void lcm_resume_power(void)
 #ifdef BUILD_LK
 	mt6325_upmu_set_rg_vgp1_en(1);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6325_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -445,12 +445,18 @@ static void lcm_init_registers()
 	unsigned int data_array[16];
 	data_array[0] = 0x00002300;
 	dsi_set_cmdq(&data_array, 1, 1);//EXTC = 1
+#ifndef BUILD_LK
+	pr_debug("[KERNEL][LCM_INIT_REGS]otm1283a_hd720_dsi_vdo_tm----First cmd DONE\n");
+#endif	
 	
-	data_array[0] = 0x00042902;
+        data_array[0] = 0x00042902;
 	data_array[1] = 0x018312FF;
 	dsi_set_cmdq(&data_array, 2, 1);//EXTC = 1
+#ifndef BUILD_LK
+	pr_debug("[KERNEL][LCM_INIT_REGS]otm1283a_hd720_dsi_vdo_tm----Second cmd DONE\n");
+#endif
 	
-	data_array[0] = 0x80002300;
+        data_array[0] = 0x80002300;
 	dsi_set_cmdq(&data_array, 1, 1);	//Orise mode enable
 	
 	data_array[0] = 0x00032902;
@@ -1560,9 +1566,9 @@ static void lcm_init(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 	
 	cmd=0x01;
@@ -1576,9 +1582,9 @@ static void lcm_init(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]nt35595----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 #endif	
 	
@@ -1589,7 +1595,14 @@ static void lcm_init(void)
     SET_RESET_PIN(1);
 	MDELAY(10);//100
 
+#ifndef BUILD_LK
+	pr_debug("[KERNEL][LCM_INIT]otm1283a_hd720_dsi_vdo_tm----RESET DONE\n");
+#endif
 	lcm_init_registers();
+
+#ifndef BUILD_LK
+	pr_debug("[KERNEL][LCM_INIT_REGS]otm1283a_hd720_dsi_vdo_tm----DONE\n");
+#endif
 	data_array[0] = 0x00352500;
 	dsi_set_cmdq(&data_array, 1, 1);
 	data_array[0] = 0x00362500;
@@ -1612,10 +1625,14 @@ static void lcm_init(void)
 	dsi_set_cmdq(data_array, 2, 1);
 
 	push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
+#ifndef BUILD_LK
+	pr_debug("[KERNEL][LCM_INIT]otm1283a_hd720_dsi_vdo_tm----SleepOut DONE\n");
+#endif
 #ifndef BUILD_LK	
 	// Refresh value of backlight level.for esd check recovery because lcm init need set backlight as 0.
 	lcm_backlight_level_setting[0].para_list[0] = 25;
 	push_table(lcm_backlight_level_setting, sizeof(lcm_backlight_level_setting) / sizeof(struct LCM_setting_table), 1);
+        pr_debug("[KERNEL][LCM_INIT]otm1283a_hd720_dsi_vdo_tm----SetBacklight DONE\n");
 #endif	
 }
 
@@ -1688,7 +1705,7 @@ static void lcm_setbacklight(unsigned int level)
 #ifdef BUILD_LK
 	dprintf(0,"%s,lk nt35595 backlight: level = %d\n", __func__, level);
 #else
-	printk("%s, kernel nt35595 backlight: level = %d\n", __func__, level);
+	pr_debug("%s, kernel nt35595 backlight: level = %d\n", __func__, level);
 #endif
 	// Refresh value of backlight level.
 	lcm_backlight_level_setting[0].para_list[0] = level;
@@ -1702,14 +1719,14 @@ static void lcm_set_cmd(void* handle,int *lcm_cmd,unsigned int cmd_num)
 #ifdef BUILD_LK
 	dprintf(0,"%s,lk nt35595 set cmd: num = %d\n", __func__, cmd_num);
 #else
-	printk("%s, kernel nt35595 set cmd: num = %d\n", __func__, cmd_num);
+	pr_debug("%s, kernel nt35595 set cmd: num = %d\n", __func__, cmd_num);
     if(cmd_num==0)
 		return;
 //customize example 
 	unsigned int cmd = 0x51;
 	unsigned int count =1;
     unsigned int level = lcm_cmd[0];
-	printk("[lcm_set_cmd mode = %d\n", lcm_cmd[0]);
+	pr_debug("[lcm_set_cmd mode = %d\n", lcm_cmd[0]);
 	dsi_set_cmd_by_cmdq(handle, cmd, count, &level, 1);
 //	
 #endif

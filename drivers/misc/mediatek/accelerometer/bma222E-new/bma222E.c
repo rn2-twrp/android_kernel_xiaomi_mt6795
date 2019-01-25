@@ -343,6 +343,8 @@ EXPORT_SYMBOL(BMA222_SCP_SetPowerMode);
 /*--------------------BMA222 power control function----------------------------------*/
 static void BMA222_power(struct acc_hw *hw, unsigned int on) 
 {
+#ifdef __USE_LINUX_REGULATOR_FRAMEWORK__
+#else
 #ifndef FPGA_EARLY_PORTING
 	static unsigned int power_on = 0;
 
@@ -370,6 +372,7 @@ static void BMA222_power(struct acc_hw *hw, unsigned int on)
 	}
 	power_on = on;
 #endif //#ifndef FPGA_EARLY_PORTING
+#endif //__USE_LINUX_REGULATOR_FRAMEWORK__
 }
 /*----------------------------------------------------------------------------*/
 
@@ -2146,9 +2149,9 @@ static int gsensor_get_data(int* x ,int* y,int* z, int* status)
 		return req.get_data_rsp.errCode;
 	}
 
-	*x = req.get_data_rsp.int16_Data[0];
-	*y = req.get_data_rsp.int16_Data[1];
-	*z = req.get_data_rsp.int16_Data[2];
+	*x = (int)req.get_data_rsp.int16_Data[0]*GRAVITY_EARTH_1000/1000;
+	*y = (int)req.get_data_rsp.int16_Data[1]*GRAVITY_EARTH_1000/1000;
+	*z = (int)req.get_data_rsp.int16_Data[2]*GRAVITY_EARTH_1000/1000;
 	GSE_ERR("x = %d, y = %d, z = %d\n", *x, *y, *z);
 
 	*status = SENSOR_STATUS_ACCURACY_MEDIUM;
@@ -2275,7 +2278,7 @@ static int bma222_i2c_probe(struct i2c_client *client, const struct i2c_device_i
         goto exit_kfree;
     }
 
-    err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 1000, 0);
+    err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 102, 0); //divisor is 1000/9.8
     if(err)
     {
 	    GSE_ERR("register gsensor batch support err = %d\n", err);

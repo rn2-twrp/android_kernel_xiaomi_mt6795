@@ -19,7 +19,7 @@
 #elif defined(BUILD_UBOOT)
 #define LCM_DEBUG(fmt,arg...)  printf("[Eric][uboot]""[%s]"fmt"\n",__func__,##arg)
 #else
-#define LCM_DEBUG(fmt,arg...)  printk("[Eric][kernel]""[%s]"fmt"\n",__func__,##arg)
+#define LCM_DEBUG(fmt,arg...)  pr_debug("[Eric][kernel]""[%s]"fmt"\n",__func__,##arg)
 #endif
 
 // ---------------------------------------------------------------------------

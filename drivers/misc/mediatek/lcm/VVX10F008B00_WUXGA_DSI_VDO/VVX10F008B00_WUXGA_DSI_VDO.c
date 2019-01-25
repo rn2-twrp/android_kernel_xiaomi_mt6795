@@ -119,7 +119,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 		//params->dsi.pll_div2=0;				// div2=0,1,2,3;div1_real=1,2,4,4	
 		//params->dsi.fbk_div =0x12;    // fref=26MHz, fvco=fref*(fbk_div+1)*2/(div1_real*div2_real)	
 
-		params->dsi.PLL_CLOCK = 494;
+		params->dsi.PLL_CLOCK = 483;
 }
 
 static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
@@ -135,7 +135,7 @@ static void lcm_init(void)
 	printf("[LK/LCM] lcm_init() enter\n");
 	
 	#else
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	#endif
 }
@@ -147,7 +147,7 @@ static void lcm_init_power(void)
 		printf("[LK/LCM] lcm_init_power() enter\n");
 		
 #else
-		printk("[Kernel/LCM] lcm_init_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 	
 #endif
 
@@ -159,7 +159,7 @@ static void lcm_suspend_power(void)
 		printf("[LK/LCM] lcm_suspend_power() enter\n");
 			
 #else
-		printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 		
 #endif
 
@@ -171,7 +171,7 @@ static void lcm_resume_power(void)
 		printf("[LK/LCM] lcm_resume_power() enter\n");
 				
 #else
-		printk("[Kernel/LCM] lcm_resume_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 			
 #endif
 
@@ -205,7 +205,7 @@ static void lcm_init(void)
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 		MDELAY(50);
 
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	//lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	//MDELAY(10);
@@ -233,7 +233,7 @@ static void lcm_suspend(void)
 	//MDELAY(50);
 	
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN,GPIO_OUT_ZERO);
 	MDELAY(100);
@@ -261,7 +261,7 @@ static void lcm_resume(void)
 	MDELAY(50);
 	
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	MDELAY(50);

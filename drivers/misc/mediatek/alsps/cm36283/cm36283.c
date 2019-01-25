@@ -161,6 +161,7 @@ static struct cm36283_priv *g_cm36283_ptr = NULL;
 static struct cm36283_priv *cm36283_obj = NULL;
 static struct platform_driver cm36283_alsps_driver;
 //static struct PS_CALI_DATA_STRUCT ps_cali={0,0,0};
+static int intr_flag = 1; //hw default away after enable.
 /*----------------------------------------------------------------------------*/
 
 static DEFINE_MUTEX(cm36283_mutex);
@@ -180,6 +181,7 @@ typedef enum {
     CMC_TRC_I2C     = 0x0010,
     CMC_TRC_CVT_ALS = 0x0020,
     CMC_TRC_CVT_PS  = 0x0040,
+	CMC_TRC_LP      = 0x0080,
     CMC_TRC_DEBUG   = 0x8000,
 } CMC_TRC;
 /*-----------------------------------------------------------------------------*/
@@ -286,6 +288,30 @@ static void cm36283_power(struct alsps_hw *hw, unsigned int on)
 	power_on = on;
 }
 /********************************************************************/
+static void cm36283_enable_status(struct i2c_client *client)
+{
+	int res;
+	u8 databuf[3];
+
+	databuf[0] = CM36283_REG_ALS_CONF;
+	res = CM36283_i2c_master_operate(client, databuf, 0x201, I2C_FLAG_READ);
+	if (res < 0) {
+		APS_ERR("i2c_master_send function err\n");
+	} else{
+		APS_ERR("reg[0x%x] = 0x%x, bit[0] should be 1. (%c)\n",
+			CM36283_REG_ALS_CONF, databuf[0], (databuf[0]&0x1) == 0x1?'O':'X');
+	}
+
+	databuf[0] = CM36283_REG_PS_CONF1_2;
+	res = CM36283_i2c_master_operate(client, databuf, 0x201, I2C_FLAG_READ);
+	if (res < 0) {
+		APS_ERR("i2c_master_send function err\n");
+	} else{
+		APS_ERR("reg[0x%x] = 0x%x, bit[0] should be 1. (%c)\n",
+			CM36283_REG_PS_CONF1_2, databuf[0], (databuf[0]&0x1) == 0x1?'O':'X');
+	}
+}
+/********************************************************************/
 int cm36283_enable_ps(struct i2c_client *client, int enable)
 {
 	struct cm36283_priv *obj = i2c_get_clientdata(client);
@@ -341,6 +367,7 @@ int cm36283_enable_ps(struct i2c_client *client, int enable)
 			}
 			atomic_set(&obj->ps_deb_on, 1);
 			atomic_set(&obj->ps_deb_end, jiffies+atomic_read(&obj->ps_debounce)/(1000/HZ));
+			intr_flag = 1; //reset hw status to away after enable.
 		}
 	else{
 			APS_LOG("cm36283_enable_ps disable_ps\n");
@@ -495,7 +522,7 @@ static int cm36283_get_ps_value(struct cm36283_priv *obj, u8 ps)
 {
 	int val, mask = atomic_read(&obj->ps_mask);
 	int invalid = 0;
-	val = 0;
+	val = intr_flag; //value between high/low threshold should sync. with hw status.
 
 	if(ps > atomic_read(&obj->ps_thd_val_high))
 	{
@@ -1001,8 +1028,6 @@ static int cm36283_create_attr(struct device_driver *driver)
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------interrupt functions--------------------------------*/
-static int intr_flag = 0;
-/*----------------------------------------------------------------------------*/
 static int cm36283_check_intr(struct i2c_client *client) 
 {
 	int res;
@@ -1432,6 +1457,9 @@ static void cm36283_early_suspend(struct early_suspend *h)
 		{
 			APS_ERR("disable als fail: %d\n", err); 
 		}
+	if (atomic_read(&obj->trace) & CMC_TRC_LP) {
+		cm36283_enable_status(obj->client);
+	}
 }
 
 static void cm36283_late_resume(struct early_suspend *h) 
@@ -1446,6 +1474,9 @@ static void cm36283_late_resume(struct early_suspend *h)
 			APS_ERR("null pointer!!\n");
 			return;
 		}
+	if (atomic_read(&obj->trace) & CMC_TRC_LP) {
+		cm36283_enable_status(obj->client);
+	}
 	
 		atomic_set(&obj->als_suspend, 0);
 		if(test_bit(CMC_BIT_ALS, &obj->enable))
@@ -1881,13 +1912,23 @@ static int cm36283_i2c_detect(struct i2c_client *client, struct i2c_board_info *
 
 static int cm36283_i2c_suspend(struct i2c_client *client, pm_message_t msg)
 {
+    struct cm36283_priv *obj = i2c_get_clientdata(client);
+
 	APS_FUN();
+	if (atomic_read(&obj->trace) & CMC_TRC_LP) {
+		cm36283_enable_status(obj->client);
+	}
 	return 0;
 }
 
 static int cm36283_i2c_resume(struct i2c_client *client)
 {
+    struct cm36283_priv *obj = i2c_get_clientdata(client);
+
 	APS_FUN();
+	if (atomic_read(&obj->trace) & CMC_TRC_LP) {
+		cm36283_enable_status(obj->client);
+	}
 	return 0;
 }
 

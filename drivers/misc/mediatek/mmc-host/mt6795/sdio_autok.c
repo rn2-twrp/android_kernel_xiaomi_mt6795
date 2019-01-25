@@ -15,7 +15,6 @@
  *                        Symbol/Type Definition                             *
  *****************************************************************************/
 #define AUTOK_VERSION_NO (0x62900010)
-#define AUTOK_MINOR_VERSION_NO (0x1)
 #define SDIO_AUTOK_ID (1)
 
 #ifdef MT6582LTE
@@ -338,28 +337,7 @@ typedef enum
     CMDPAT_REG_2_L,
 
 }AUTOK_CMDPAT_SCEN_E;
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-typedef enum {
-	START_POSITION,
-	PASS_POSITION,
-	FAIL_POSITION,
-}AUTOK_CMDINT_SCAN_STA_E;
 
-typedef struct {
-	unsigned int Bound_Start;
-	unsigned int Bound_End;
-}BOUND_INFO, *P_BOUND_INFO;
-
-#define BD_MAX_CNT 16	/* Max Boundary Number */
-typedef struct {
-	/* Bound info record, currently only allow max to 16 fail bounds exist */
-	BOUND_INFO pass_bd_info[BD_MAX_CNT];
-	BOUND_INFO fail_bd_info[BD_MAX_CNT];
-	/* Bound cnt record */
-	unsigned int pass_bd_cnt;
-	unsigned int fail_bd_cnt;
-}AUTOK_CMDINT_SCAN_RES, *P_AUTOK_CMDINT_SCAN_RES;
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end
 typedef struct
 {
     unsigned int RawData;
@@ -620,7 +598,7 @@ int autok_start_rw(struct msdc_host *host, u8 *value, unsigned size, unsigned bl
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        pr_debug("[%s][SD%d] register abnormal,please check!\n",__func__, host->id);
+	pr_debug("[%s][SD%d] register abnormal,please check!\n", __func__, host->id);
         msdc_reset_hw(host->id);
     }
     
@@ -658,13 +636,13 @@ int autok_io_rw_extended(struct msdc_host *host, unsigned int u4Addr, unsigned i
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        pr_debug("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+	pr_debug("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
         return -1;
     }
     
     if( u4Len < 4 )
     {
-        pr_debug("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
+	pr_debug("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
         return -1;
     }
     
@@ -748,13 +726,13 @@ int autok_io_rw_direct(struct msdc_host *host, unsigned int u4Addr, unsigned int
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        pr_debug("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+	pr_debug("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
         return -1;
     }
     
     if( u4Len > 1 )
     {
-        pr_debug("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
+	pr_debug("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
         return -1;
     }
     
@@ -778,7 +756,7 @@ int autok_io_rw_direct(struct msdc_host *host, unsigned int u4Addr, unsigned int
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        pr_debug("[%s][SD%d] register abnormal,please check!\n",__func__, host->id);
+	pr_debug("[%s][SD%d] register abnormal,please check!\n", __func__, host->id);
         msdc_reset_hw(host->id);
     }
     
@@ -874,14 +852,14 @@ int msdc_autok_read(struct msdc_host *host, unsigned int u4Addr, unsigned int u4
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        pr_debug("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+	pr_debug("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
         return -1;
     }
         
     if( ((u4Cmd == CMD_53) && (u4Len < 4)) ||
         ((u4Cmd == CMD_52) && (u4Len > 1)) )
     {
-        pr_debug("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
+	pr_debug("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
         return -1;
     }
     
@@ -891,7 +869,7 @@ int msdc_autok_read(struct msdc_host *host, unsigned int u4Addr, unsigned int u4
         ret = autok_io_rw_direct(host, u4Addr, u4Func, pBuffer, u4Len, 0);
     else
     {
-        pr_debug("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
+	pr_debug("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
         ret = -1;
     }
     
@@ -922,14 +900,14 @@ int msdc_autok_write(struct msdc_host *host, unsigned int u4Addr, unsigned int u
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        pr_debug("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+	pr_debug("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
         return -1;
     }
         
     if( ((u4Cmd == CMD_53) && (u4Len < 4)) ||
         ((u4Cmd == CMD_52) && (u4Len > 1)) )
     {
-        pr_debug("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
+	pr_debug("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
         return -1;
     }
 
@@ -939,7 +917,7 @@ int msdc_autok_write(struct msdc_host *host, unsigned int u4Addr, unsigned int u
         ret = autok_io_rw_direct(host, u4Addr, u4Func, pBuffer, u4Len, 1);
     else
     {
-        pr_debug("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
+	pr_debug("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
         ret = -1;
     }
 
@@ -976,7 +954,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for CMD_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CMD_EDGE is out of range, it should be [0~1]\n", __func__, *value);
                 return -1;
             }
             reg = MSDC_IOCON;
@@ -985,7 +963,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case RDATA_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for RDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for RDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
                 return -1;
             }
             reg = MSDC_IOCON;
@@ -994,7 +972,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WDATA_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for WDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for WDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
                 return -1;
             }
             reg = MSDC_IOCON;
@@ -1004,13 +982,13 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CLK_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for CLK_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CLK_DRV is out of range, it should be [0~7]\n", __func__, *value);
                 return -1;
             }
                 
             if(host->id != 2)
             {
-                pr_debug("[%s] MSDC%d doesn't support AUTO K\n", __func__, host->id);
+		pr_debug("[%s] MSDC%d doesn't support AUTO K\n", __func__, host->id);
                 return -1;
             }
 
@@ -1020,13 +998,13 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for CMD_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CMD_DRV is out of range, it should be [0~7]\n", __func__, *value);
                 return -1;
             }
             
             if(host->id != 2)
             {
-                pr_debug("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
+		pr_debug("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
                 return -1;
             }
 
@@ -1036,13 +1014,13 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for DAT_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT_DRV is out of range, it should be [0~7]\n", __func__, *value);
                 return -1;
             }
             
             if(host->id != 2)
             {
-                pr_debug("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
+		pr_debug("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
                 return -1;
             }
 
@@ -1053,7 +1031,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT0_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT0_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT0_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1063,7 +1041,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT1_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT1_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT1_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1073,7 +1051,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT2_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT2_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT2_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1083,7 +1061,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT3_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT3_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT3_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1093,7 +1071,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_WRD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT_WRD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT_WRD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1103,7 +1081,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for DAT_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DAT_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1113,7 +1091,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RESP_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for CMD_RESP_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CMD_RESP_RD_DLY out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1123,7 +1101,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for CMD_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CMD_RD_DLY is out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1133,7 +1111,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DATA_DLYLINE_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for DATA_DLYLINE_SEL is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for DATA_DLYLINE_SEL out of range, should be 0~1\n", __func__, *value);
                 return -1;
             }
             
@@ -1143,7 +1121,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case READ_DATA_SMPL_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for READ_DATA_SMPL_SEL is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for RD_DATA_SMPL_SEL out of range, should be 0~1\n", __func__, *value);
                 return -1;
             }
             
@@ -1153,7 +1131,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WRITE_DATA_SMPL_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                pr_debug("[%s] Input value(%d) for WRITE_DATA_SMPL_SEL is out of range, it should be [0~1]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for WR_DATA_SMPL_SEL out of range, should be 0~1\n", __func__, *value);
                 return -1;
             }
             
@@ -1163,7 +1141,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case INT_DAT_LATCH_CK:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for INT_DAT_LATCH_CK is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for INT_DAT_LATCH_CK out of range, should be 0~7\n", __func__, *value);
                 return -1;
             }
             
@@ -1173,7 +1151,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CKGEN_MSDC_DLY_SEL:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for CKGEN_MSDC_DLY_SEL is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CKGEN_MSDC_DLY_SEL out of range, shld be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1183,7 +1161,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RSP_TA_CNTR:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for CMD_RSP_TA_CNTR is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for CMD_RSP_TA_CNTR out of range, should be 0~7\n", __func__, *value);
                 return -1;
             }
             
@@ -1193,7 +1171,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WRDAT_CRCS_TA_CNTR:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                pr_debug("[%s] Input value(%d) for WRDAT_CRCS_TA_CNTR is out of range, it should be [0~7]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for WRDAT_CRCS_TA_CNTR out of range, shld be 0~7\n", __func__, *value);
                 return -1;
             }
             
@@ -1203,7 +1181,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case PAD_CLK_TXDLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                pr_debug("[%s] Input value(%d) for PAD_CLK_TXDLY is out of range, it should be [0~31]\n", __func__, *value);
+		pr_debug("[%s] Input value(%d) for PAD_CLK_TXDLY out of range, should be 0~31\n", __func__, *value);
                 return -1;
             }
             
@@ -1211,7 +1189,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
             field = (u32)(MSDC_PAD_TUNE_CLKTXDLY);
             break;
         default:
-            pr_debug("[%s] Value of [enum AUTOK_PARAM param] is wrong\n", __func__);
+		pr_debug("[%s] Value of [enum AUTOK_PARAM param] is wrong\n", __func__);
             return -1;
     }
 
@@ -1230,7 +1208,7 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
     }
     else
     {
-        pr_debug("[%s] Value of [int rw] is wrong\n", __func__);
+	pr_debug("[%s] Value of [int rw] is wrong\n", __func__);
         return -1;
     }
 
@@ -1364,7 +1342,7 @@ static E_RESULT_TYPE autok_read_test(struct msdc_host *host)
 
         if(memcmp(g_test_read_pattern, &g_test_write_pattern[i*TUNING_TEST_TIME], 4*TUNING_TEST_TIME) != 0) {
             res = E_RESULT_CMP_ERR;
-            pr_debug("[%s] E_RESULT_CMP_ERR\n", __func__);
+		pr_debug("[%s] E_RESULT_CMP_ERR\n", __func__);
             goto end;
         }
     }
@@ -1419,7 +1397,7 @@ static E_RESULT_TYPE autok_cmd_test(struct msdc_host *host)
 
         if(g_test_read_pattern[0] != tuning_data[i]) {
         #ifdef AUTOK_DEBUG
-            pr_debug("write: 0x%x read: 0x%x\r\n", tuning_data[i], g_test_read_pattern[0]);
+		pr_debug("write: 0x%x read: 0x%x\r\n", tuning_data[i], g_test_read_pattern[0]);
         #endif
             res = E_RESULT_CMP_ERR;
             goto end;
@@ -1704,80 +1682,6 @@ autok_check_score(
 #endif
 
 static void 
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-autok_check_cmdint_style(
-    P_AUTOK_RAWD_SCAN_T prAutok_raw_scan,
-    P_AUTOK_CMDINT_SCAN_RES prAutok_cmdint_bond
-    )
-{
-	unsigned char bit;
-	unsigned char pass_bd_info_cnt = 0;
-	unsigned char fail_bd_info_cnt = 0;
-	AUTOK_CMDINT_SCAN_STA_E CmdIntSta = START_POSITION;
-	
-	for (bit = 0; bit < 32; bit++) {
-		if (prAutok_raw_scan->RawData & (1 << bit)) {
-			switch (CmdIntSta) {
-				case START_POSITION:
-					CmdIntSta = FAIL_POSITION;
-					prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt++].Bound_Start = bit;
-					prAutok_cmdint_bond->fail_bd_cnt++;
-				break;
-
-				case PASS_POSITION:
-					CmdIntSta = FAIL_POSITION;
-					if (bit == 31) {
-						prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt++].Bound_Start = bit;
-						prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt-1].Bound_End = bit;
-					} else
-						prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt++].Bound_Start = bit;
-					prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt - 1].Bound_End = bit - 1;
-					prAutok_cmdint_bond->fail_bd_cnt++;
-				break;
-
-				case FAIL_POSITION:
-					CmdIntSta = FAIL_POSITION;
-					if (bit == 31)
-						prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt - 1].Bound_End = bit;
-				break;
-
-				default:
-				break;
-			}
-		} else {
-			switch (CmdIntSta) {
-				case START_POSITION:
-					CmdIntSta = PASS_POSITION;
-					prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt++].Bound_Start = bit;
-					prAutok_cmdint_bond->pass_bd_cnt++;
-				break;
-
-				case PASS_POSITION:
-					CmdIntSta = PASS_POSITION;
-					if (bit == 31)
-						prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt - 1].Bound_End = bit;
-				break;
-
-				case FAIL_POSITION:
-					CmdIntSta = PASS_POSITION;
-					if (bit == 31) {
-						prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt++].Bound_Start = bit;
-						prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt-1].Bound_End = bit;
-					} else
-						prAutok_cmdint_bond->pass_bd_info[pass_bd_info_cnt++].Bound_Start = bit;
-					prAutok_cmdint_bond->fail_bd_info[fail_bd_info_cnt - 1].Bound_End = bit - 1;
-					prAutok_cmdint_bond->pass_bd_cnt++;
-				break;
-
-				default:
-				break;
-			}
-		}
-	}
-}
-
-static void 
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end
 autok_check_rawd_style(
     P_AUTOK_RAWD_SCAN_T prAutok_raw_scan,
     unsigned char isRDat
@@ -2215,38 +2119,25 @@ autok_check_cmd_matrix (
     unsigned int pad_idx, int_idx;
     unsigned int PadDlyScore, raw;
     AUTOK_RAWD_SCAN_T raw_scan;
-	AUTOK_CMDINT_SCAN_RES CMDIntScan;      //Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
 
     raw = 0;
 
     for (pad_idx = 0; pad_idx < PadDlyNum; pad_idx++) {
-        PadDlyScore = 0;
-        
+	PadDlyScore = 0;
+
         for (int_idx = 0; int_idx < IntDlyNum; int_idx++) {
-            PadDlyScore += ((pMatrixRaw[int_idx] >> pad_idx) & 0x1);
+		PadDlyScore += ((pMatrixRaw[int_idx] >> pad_idx) & 0x1);
         }
 
-        if (PadDlyScore >= 12)
-            raw |= 1 << pad_idx;
+	if (PadDlyScore >= 12)
+		raw |= 1 << pad_idx;
     }
 
     memset(&raw_scan, 0, sizeof(raw_scan));
     raw_scan.RawData = raw;
     autok_simple_score(raw_scan.RawData);
     AUTOK_PRINT("CMD pad mapped from martrix: %s\r\n", g_tune_result_str);
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-	memset(&CMDIntScan, 0, sizeof(AUTOK_CMDINT_SCAN_RES));
-	autok_check_cmdint_style(&raw_scan, &CMDIntScan);
-	if (CMDIntScan.fail_bd_cnt > 1) {
-		raw = 0;
-		for(pad_idx = CMDIntScan.fail_bd_info[0].Bound_Start; pad_idx <=
-			CMDIntScan.fail_bd_info[CMDIntScan.fail_bd_cnt - 1].Bound_End; pad_idx++)
-			raw |= 1 << pad_idx;
-		raw_scan.RawData = raw;
-    	autok_simple_score(raw_scan.RawData);
-    	AUTOK_PRINT("CMD pad re-mapped : %s\r\n", g_tune_result_str);
-	}
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end
+    
     autok_check_rawd_style(&raw_scan, 1);
 
     if (raw_scan.Reg1Cnt) {
@@ -3220,7 +3111,7 @@ ReScanCycle:
                         }
                         if (res == E_RESULT_CMD_CRC) {
                             AUTOK_PRINT("[WARN] CMD CRC error in tuning read[%d %d], need to tune command again!!\r\n",x,m);
-                            reTuneCmd = 0;   //Modify by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
+                            reTuneCmd = 1;
                         }
                         break;
                     }
@@ -3796,7 +3687,6 @@ autok_tune_cmd(
     S_AUTOK_CMD_DLY data;
     AUTOK_CMD_TUNE_RES_T rCmdTuneRes;
     AUTOK_RAWD_SCAN_T CMDPadScan;
-	AUTOK_CMDINT_SCAN_RES CMDIntScan;  //Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
 
     AUTOK_PRINT("=====autok_tune_cmd=====\r\n");
     
@@ -4262,14 +4152,6 @@ reTuneCMDMatrix:
         CMDPadScan.RawData = data.raw_data;
         data.score = autok_simple_score(CMDPadScan.RawData);
         AUTOK_PRINT("Int CMD scan %s, score=%d\r\n", g_tune_result_str, data.score);
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-		memset(&CMDIntScan, 0, sizeof(AUTOK_CMDINT_SCAN_RES));
-		autok_check_cmdint_style(&CMDPadScan, &CMDIntScan);
-		if (CMDIntScan.fail_bd_cnt > 1) {
-			sel = 0;
-			goto cmdint_result;
-		}
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end		
         autok_check_rawd_style(&CMDPadScan, 0);
 
         if (data.score == 32) {
@@ -4356,7 +4238,6 @@ reTuneCMDMatrix:
             }
         }
 
-cmdint_result:            //Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
         rCmdTuneRes.CmdIntDly = sel;
         pAutoKData[E_MSDC_PAD_TUNE_CMDRRDLY].data.sel = sel;
         msdc_autok_adjust_param(host, CMD_RESP_RD_DLY, &pAutoKData[E_MSDC_PAD_TUNE_CMDRRDLY].data.sel, MSDC_WRITE);
@@ -5302,7 +5183,7 @@ autok_doub_chk_wdat_int_bound(struct msdc_host *host, unsigned int *pRaw)
                     }
                     if (res == E_RESULT_CMD_CRC) {
                         AUTOK_PRINT("[WARN] CMD CRC error in tuning write[%d %d], need to tune command again!!\r\n",x,m);
-                        reTuneCmd = 0;  //Modify by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
+                        reTuneCmd = 1;
                     }
                     break;
                 }
@@ -5350,7 +5231,6 @@ autok_tune_wd(struct msdc_host *host, U_AUTOK_INTERFACE_DATA *pAutoKData)
     
     S_AUTOK_CMD_DLY data;
     AUTOK_RAWD_SCAN_T WRIntScan;
-	AUTOK_CMDINT_SCAN_RES WRIntScanV;  //Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
     E_RESULT_TYPE res = E_RESULT_ERR;
 
     AUTOK_PRINT("=====autok_tune_wd=====\r\n");
@@ -5395,19 +5275,10 @@ doubleChkWDAT:
     memset(&WRIntScan, 0, sizeof(AUTOK_RAWD_SCAN_T));
     WRIntScan.RawData = data.raw_data;
     data.score = autok_simple_score(WRIntScan.RawData);
-	AUTOK_PRINT("CKGEN_MSDC_DLY \t PAD_TUNE_DATWDDLY \r\n");
+    autok_check_rawd_style(&WRIntScan, 0);
+    AUTOK_PRINT("CKGEN_MSDC_DLY \t PAD_TUNE_DATWDDLY \r\n");
     AUTOK_PRINT("%d \t %d \t %s\r\n", pAutoKData[E_MSDC_CKGEN_MSDC_DLY_SEL].data.sel, 
         data.score, g_tune_result_str);
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-	memset(&WRIntScanV, 0, sizeof(AUTOK_CMDINT_SCAN_RES));
-	autok_check_cmdint_style(&WRIntScan, &WRIntScanV);
-	if (WRIntScanV.fail_bd_cnt > 1) {
-		sel = 0;
-		goto wrint_result;
-	}
-	
-    autok_check_rawd_style(&WRIntScan, 0);
-//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end   
 
     if (data.score == 32) {
         sel = 15;
@@ -5494,7 +5365,6 @@ doubleChkWDAT:
             goto exit;
     }
 
-wrint_result:   //Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
     pAutoKData[E_MSDC_PAD_TUNE_DATWRDLY].data.sel = sel;
     sel = pAutoKData[E_MSDC_CKGEN_MSDC_DLY_SEL].data.sel;
     autok_ckg_data[sel].writePadSel = pAutoKData[E_MSDC_PAD_TUNE_DATWRDLY].data.sel;
@@ -5753,20 +5623,19 @@ static void autok_vcore_set(unsigned int vcore_uv)
         #endif
 
 
-    printk("@# vcore_uv = %d\n",vcore_uv);
+	pr_debug("@# vcore_uv = %d\n", vcore_uv);
     if(vcore_uv == 1000000){
-    	printk("apply ckgen=3 @ 1000000\n");
+	pr_debug("apply ckgen=3 @ 1000000\n");
    	autok_ckgen_range(3,3); 	
     }else if(vcore_uv == 1125000){
-    	printk("apply ckgen=0 @ 1125000\n");
+	pr_debug("apply ckgen=0 @ 1125000\n");
    	autok_ckgen_range(0,0); 	
     }else{
-    	printk("apply ckgen=0 @ others\n");
+	pr_debug("apply ckgen=0 @ others\n");
    	autok_ckgen_range(0,0); 	
     }
 
     if(vcore1_reg != 0){
-        printk("-ccyeh #6#- manual voltage setting vio18: %d vcore1: %d vcore2: %d\n",sdio_vio18_flag,sdio_vcore1_flag,sdio_vcore2_flag);    	
 
         if( sdio_vio18_flag > 1600 && sdio_vio18_flag <2000)
         {
@@ -5788,7 +5657,6 @@ static void autok_vcore_set(unsigned int vcore_uv)
             pmic_config_interface(0x36c, vcore2_reg, 0x7F, 0);
 	}
 
-        printk("-ccyeh #6#- manual voltage setting complere ==> vio18: %d vcore1: %d vcore2: %d\n",vio18_reg,vcore1_reg,vcore2_reg);    	
     }
 
 
@@ -5848,7 +5716,9 @@ static void autok_show_parameters(struct msdc_host *host, void *pData)
     unsigned int val;
     unsigned int field;
     U_AUTOK_INTERFACE_DATA *pAutok;
+	char buf[64];
 
+	memset((void *)buf, 0, sizeof(buf));
     pAutok = (U_AUTOK_INTERFACE_DATA *)pData;
 
     AUTOK_PRINT("=====Delay Params Show:=====\r\n");
@@ -5859,14 +5729,16 @@ static void autok_show_parameters(struct msdc_host *host, void *pData)
         if(val != pAutok[parm].data.sel) {
             AUTOK_PRINT("%s expect:%02d, real:%02d\r\n", autok_param_name[parm], pAutok[parm].data.sel, val);
         }else {
-            AUTOK_PRINT("%s value:%02d\r\n", autok_param_name[parm], val);
+		snprintf(buf, sizeof(buf), "%s %02d", buf, val);
         }
     }
+
+	if (strlen(buf) != 0)
+		AUTOK_PRINT("%s\n", buf);
 }
 
 static void autok_setup_envir(struct msdc_host *host)
 {
-    AUTOK_PRINT("AUTOK version:0x%X.%X\n", AUTOK_VERSION_NO,AUTOK_MINOR_VERSION_NO);
     freq_mhz = host->mclk/1000000;
 
     #if defined(MT6582LTE)
@@ -6035,8 +5907,7 @@ msdc_autok_apply_param(struct msdc_host *host, unsigned int vcore_uv_off)
 
     if((pAutok + E_AUTOK_VERSION)->version != AUTOK_VERSION_NO)
     {
-	//Delete by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
-         /* AUTOK_PRINT("autoK version wrong = %d\r\n", pAutok->version); */
+        AUTOK_PRINT("autoK version wrong = %d\r\n", pAutok->version);
         return -2;
     }
 
@@ -6066,8 +5937,7 @@ msdc_autok_apply_param(struct msdc_host *host, unsigned int vcore_uv_off)
 int msdc_autok_stg1_cal(
     struct msdc_host *host, 
     unsigned int offset_restore, 
-    struct autok_predata *p_single_autok,
-    unsigned char re_autok_cnt)     //Modify by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 
+    struct autok_predata *p_single_autok)
 {
     E_RESULT_TYPE res= E_RESULT_ERR;
     U_AUTOK_INTERFACE_DATA *pAutok;
@@ -6100,10 +5970,6 @@ int msdc_autok_stg1_cal(
         autok_show_parameters(host, pAutok);
     else {
         AUTOK_PRINT("[ERR]msdc_autok_stg1_cal returns %d\r\n", res);
-		//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 begin
-		if(re_autok_cnt == (RE_AUTOK_MAX_CNT - 1))
-			AUTOK_PRINT("autoK version wrong = %d\r\n", pAutok->version);
-		//Add by qinhai for ALPS02452060 SDIO CRC Error cause Arp Tx Req fail 20151206 end
         goto exit;
     }
 
@@ -6240,11 +6106,9 @@ int msdc_autok_stg2_cal(
     return -res;
 }
 
-// Start xiaojian
 int autok_ckgen_range(int start, int end)
 {
 	
 	g_ckgen_allow_start = start;
 	g_ckgen_allow_end = end;
 }
-//End xiaojian

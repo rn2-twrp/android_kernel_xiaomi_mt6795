@@ -69,6 +69,20 @@
 #include <linux/syscalls.h> //for file access
 #include <linux/uaccess.h>  //for file access
 
+#define TEMP_PCB_VER_CHECK
+#ifdef TEMP_PCB_VER_CHECK
+int gPCBver = 0;    // 0:HW_REV_A , 1:HW_REV_A_2, 2:HW_REV_B
+
+#define HW_REV_A        0
+#define HW_REV_A_2      1
+#define HW_REV_B        2
+
+#define HW_REV_A_RANGE        20      
+#define HW_REV_A_2_RANGE      40
+#define HW_REV_B_RANGE        60
+
+extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int* rawdata);
+#endif /* TEMP_PCB_VER_CHECK */
 
 /****************************************************************************
 * Feature
@@ -579,12 +593,12 @@ void synaptics_power ( unsigned int on )
 
 	if ( on )
 	{
-		hwPowerOn ( MT6323_POWER_LDO_VGP1, VOL_3000, "TP" );
+		//hwPowerOn ( MT6323_POWER_LDO_VGP1, VOL_1800, "1V8_MTK_LCD_IO" );
 		msleep ( 100 );
 	}
 	else
 	{
-		hwPowerDown ( MT6323_POWER_LDO_VGP1, "TP" );
+		//hwPowerDown ( MT6323_POWER_LDO_VGP1, "1V8_MTK_LCD_IO" );
 		msleep ( 10 );
 	}
 
@@ -2286,10 +2300,29 @@ static int synaptics_firmware_check ( struct i2c_client *client )
 	char image_product_id[11] = {0};
 
 	/* read Firmware information in Download Image */
+#ifdef TEMP_PCB_VER_CHECK
+    if ( gPCBver==HW_REV_B )
+    {   
+        fw_start = (unsigned char *) &SynaFirmware_RevB[0];
+        fw_size = sizeof(SynaFirmware_RevB);
+        strncpy ( image_product_id, &SynaFirmware_RevB[0x0040], 6 );
+        strncpy ( image_config_id, &SynaFirmware_RevB[0x16d00], 4 );
+        TPD_LOG ( "Firmware : gPCBver(%d) : Rev.B \n",gPCBver );
+    }
+    else    // ( gPCBver<=HW_REV_A_2 ) || ( gPCBver==HW_REV_A )
+    {
+    	fw_start = (unsigned char *) &SynaFirmware[0];
+    	fw_size = sizeof(SynaFirmware);
+    	strncpy ( image_product_id, &SynaFirmware[0x0040], 6 );
+    	strncpy ( image_config_id, &SynaFirmware[0x16d00], 4 );
+        TPD_LOG ( "Firmware : gPCBver(%d) : Rev.A or Rev.A-2 \n",gPCBver );        
+    }
+#else    
 	fw_start = (unsigned char *) &SynaFirmware[0];
 	fw_size = sizeof(SynaFirmware);
 	strncpy ( image_product_id, &SynaFirmware[0x0040], 6 );
 	strncpy ( image_config_id, &SynaFirmware[0x16d00], 4 );
+#endif /* TEMP_PCB_VER_CHECK */
 
 	if ( fw_path[0] != 0 )
 	{
@@ -2652,6 +2685,37 @@ static struct foo_obj *create_foo_obj(const char *name){
 	return foo;
 }
 
+#ifdef TEMP_PCB_VER_CHECK
+static int get_pcb_version(void)
+{
+    int data[4] = {0, 0, 0, 0};
+    int rawvalue    = 0;
+    int ret         = 0;
+    int PCBvoltage  = 0;
+
+    ret = IMM_GetOneChannelValue(1, data, &rawvalue);
+    if (ret == 0)
+    {
+        TPD_LOG("[%s] success to get adc value channel(1)=(0x%x) (%d) (ret=%d)\n", __func__, rawvalue, rawvalue, ret);
+        TPD_LOG("[%s] data[0]=0x%x, data[1]=0x%x\n\n",__func__, data[0], data[1]);
+    } else {
+        TPD_LOG("[%s] fail to get adc value (ret=%d)\n", __func__, ret);
+    }
+
+    PCBvoltage = (int)(rawvalue * 150 / 4096);
+
+    if ( PCBvoltage>HW_REV_B_RANGE )
+        gPCBver = HW_REV_B;    // rev.b
+    else if ( (PCBvoltage>HW_REV_A_RANGE) && (PCBvoltage<HW_REV_B_RANGE) )
+        gPCBver = HW_REV_A_2;    // rev.a-2
+    else
+        gPCBver = HW_REV_A;    // rev.a
+    
+    TPD_LOG("[LGE_TEST] PCBvoltage(%d), gPCBver(%d)\n", PCBvoltage, gPCBver);
+    
+    return gPCBver;
+}
+#endif /* TEMP_PCB_VER_CHECK */
 
 /****************************************************************************
 * I2C BUS Related Functions
@@ -2670,6 +2734,10 @@ static int synaptics_i2c_probe ( struct i2c_client *client, const struct i2c_dev
 		goto err_probing;
 	}
 
+#ifdef TEMP_PCB_VER_CHECK
+    get_pcb_version();
+#endif /* TEMP_PCB_VER_CHECK */
+    
 	/* X, Y max touch position */
 	x_max = DISP_GetScreenWidth ();
 	y_max = DISP_GetScreenHeight ();

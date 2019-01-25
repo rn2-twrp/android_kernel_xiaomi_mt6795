@@ -138,10 +138,10 @@ static void StartAudioFMI2SAWBHardware(struct snd_pcm_substream *substream)
     {
         //set merge interface
         SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2, true);
-    
+
         // Config 2nd I2S IN
         memset((void *)&m2ndI2SInAttribute, 0, sizeof(m2ndI2SInAttribute));
-    
+
         m2ndI2SInAttribute.mLR_SWAP = Soc_Aud_LR_SWAP_NO_SWAP;
         m2ndI2SInAttribute.mI2S_IN_PAD_SEL = false; // I2S_IN_FROM_CONNSYS
         m2ndI2SInAttribute.mI2S_SLAVE = Soc_Aud_I2S_SRC_SLAVE_MODE;
@@ -150,10 +150,13 @@ static void StartAudioFMI2SAWBHardware(struct snd_pcm_substream *substream)
         m2ndI2SInAttribute.mI2S_FMT = Soc_Aud_I2S_FORMAT_I2S;
         m2ndI2SInAttribute.mI2S_WLEN = Soc_Aud_I2S_WLEN_WLEN_16BITS;
         Set2ndI2SIn(&m2ndI2SInAttribute);
-    
-        SetI2SASRCConfig(true, 44100);  // Covert from 32000 Hz to 44100 Hz
+
+    if (substream->runtime->rate == 48000)
+	    SetI2SASRCConfig(true, 48000);  /* Covert from 32000 Hz to 48000 Hz */
+    else
+	    SetI2SASRCConfig(true, 44100);  /* Covert from 32000 Hz to 44100 Hz */
         SetI2SASRCEnable(true);
-    
+
         Set2ndI2SInEnable(true);
     }
     else
@@ -258,6 +261,7 @@ static int mtk_mgrrx_awb_pcm_hw_params(struct snd_pcm_substream *substream,
         runtime->dma_bytes = params_buffer_bytes(hw_params);
         runtime->dma_area = Awb_Capture_dma_buf->area;
         runtime->dma_addr = Awb_Capture_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_AWB,true);
     }
     else
     {
@@ -628,7 +632,7 @@ static struct platform_driver mtk_fm_i2s_awb_capture_driver =
         .owner = THIS_MODULE,
         #ifdef CONFIG_OF
         .of_match_table = mt_soc_pcm_fm_i2s_awb_of_ids,
-        #endif        
+        #endif
     },
     .probe = mtk_fm_i2s_awb_probe,
     .remove = mtk_fm_i2s_awb_remove,

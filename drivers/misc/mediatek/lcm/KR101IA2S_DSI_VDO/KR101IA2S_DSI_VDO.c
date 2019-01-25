@@ -135,7 +135,7 @@ static void lcm_init(void)
 	printf("[LK/LCM] lcm_init() enter\n");
 	
 	#else
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	#endif
 }
@@ -150,7 +150,7 @@ static void lcm_init_power(void)
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 	MDELAY(300);
 #else
-	printk("[Kernel/LCM] lcm_init_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	MDELAY(50); 
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
@@ -168,7 +168,7 @@ static void lcm_suspend_power(void)
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN,GPIO_OUT_ZERO);
 	MDELAY(100);			
 #else
-	printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN,GPIO_OUT_ZERO);
 	MDELAY(100);
 
@@ -186,7 +186,7 @@ static void lcm_resume_power(void)
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 	MDELAY(50);				
 #else
-	printk("[Kernel/LCM] lcm_resume_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	MDELAY(10);
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
@@ -211,7 +211,7 @@ static void lcm_init(void)
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ONE);
 	MDELAY(50);
 
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 #endif
 }
@@ -225,7 +225,7 @@ static void lcm_suspend(void)
 	MDELAY(50);
 	
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST,GPIO_OUT_ZERO);
 	MDELAY(50);
@@ -244,7 +244,7 @@ static void lcm_resume(void)
 	MDELAY(20);
 	
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
 	MDELAY(20);

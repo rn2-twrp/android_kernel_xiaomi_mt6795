@@ -41,6 +41,7 @@ static struct workqueue_struct *gt1x_workqueue = NULL;
 u8 gt1x_config[GTP_CONFIG_MAX_LENGTH] = { 0 };
 
 u32 gt1x_cfg_length = GTP_CONFIG_MAX_LENGTH;
+bool check_flag = false;
 
 CHIP_TYPE_T gt1x_chip_type = CHIP_TYPE_GT1X;
 struct gt1x_version_info gt1x_version = {
@@ -551,10 +552,7 @@ s32 gt1x_init_panel(void)
 {
 	s32 ret = 0;
 	u8 cfg_len = 0;
-#if GTP_CUSTOM_CFG
-	int TPD_LCM_WIDTH = 0;
-	int TPD_LCM_HEIGHT = 0;
-#endif
+
 #if GTP_DRIVER_SEND_CFG
 	u8 sensor_id = 0;
 
@@ -621,14 +619,10 @@ s32 gt1x_init_panel(void)
 	gt1x_config[0] &= 0x7F;
 
 #if GTP_CUSTOM_CFG
-	
-	TPD_LCM_WIDTH = simple_strtoul(CONFIG_LCM_WIDTH, NULL, 0);
-	TPD_LCM_HEIGHT = simple_strtoul(CONFIG_LCM_HEIGHT, NULL, 0);
-
-	gt1x_config[RESOLUTION_LOC] = (u8) TPD_LCM_WIDTH;
-	gt1x_config[RESOLUTION_LOC + 1] = (u8) (TPD_LCM_WIDTH >> 8);
-	gt1x_config[RESOLUTION_LOC + 2] = (u8) TPD_LCM_HEIGHT;
-	gt1x_config[RESOLUTION_LOC + 3] = (u8) (TPD_LCM_HEIGHT >> 8);
+	gt1x_config[RESOLUTION_LOC] = (u8) GTP_MAX_WIDTH;
+	gt1x_config[RESOLUTION_LOC + 1] = (u8) (GTP_MAX_WIDTH >> 8);
+	gt1x_config[RESOLUTION_LOC + 2] = (u8) GTP_MAX_HEIGHT;
+	gt1x_config[RESOLUTION_LOC + 3] = (u8) (GTP_MAX_HEIGHT >> 8);
 
 	GTP_INFO("Res: %d * %d, trigger: %d", GTP_MAX_WIDTH, GTP_MAX_HEIGHT, GTP_INT_TRIGGER);
 
@@ -652,10 +646,10 @@ s32 gt1x_init_panel(void)
 	gt1x_config_charger[0] &= 0x7F;
 
 #if GTP_CUSTOM_CFG
-	gt1x_config_charger[RESOLUTION_LOC] = (u8) TPD_LCM_WIDTH;
-	gt1x_config_charger[RESOLUTION_LOC + 1] = (u8) (TPD_LCM_WIDTH >> 8);
-	gt1x_config_charger[RESOLUTION_LOC + 2] = (u8) TPD_LCM_HEIGHT;
-	gt1x_config_charger[RESOLUTION_LOC + 3] = (u8) (TPD_LCM_HEIGHT >> 8);
+	gt1x_config_charger[RESOLUTION_LOC] = (u8) GTP_MAX_WIDTH;
+	gt1x_config_charger[RESOLUTION_LOC + 1] = (u8) (GTP_MAX_WIDTH >> 8);
+	gt1x_config_charger[RESOLUTION_LOC + 2] = (u8) GTP_MAX_HEIGHT;
+	gt1x_config_charger[RESOLUTION_LOC + 3] = (u8) (GTP_MAX_HEIGHT >> 8);
 
 	if (GTP_INT_TRIGGER == 0) {	/* RISING  */
 		gt1x_config_charger[TRIGGER_LOC] &= 0xfe;
@@ -899,7 +893,7 @@ s32 gt1x_wakeup_sleep(void)
 	s32 ret = -1;
 #endif
 	GTP_DEBUG("GTP wakeup begin.");
-	gt1x_irq_disable();
+//	gt1x_irq_disable();
 
 #if GTP_POWER_CTRL_SLEEP	/* power manager unit control the procedure */
 		gt1x_power_reset();
@@ -1123,12 +1117,31 @@ s32 gt1x_touch_event_handler(u8 * data, struct input_dev * dev, struct input_dev
 	key_value = touch_data[1 + 8 * touch_num];
 	/* check current event */
 	if ((touch_data[0] & 0x10) && key_value) {
-#if (GTP_HAVE_STYLUS_KEY || GTP_HAVE_TOUCH_KEY)
+#if (GTP_HAVE_STYLUS_KEY)
 		/* get current key states */
 		if (key_value & 0xF0) {
 			SET_BIT(cur_event, BIT_STYLUS_KEY);
 		} else if (key_value & 0x0F) {
 			SET_BIT(cur_event, BIT_TOUCH_KEY);
+		}
+#endif
+#if defined(CONFIG_MTK_LEGACY)
+#if (GTP_HAVE_TOUCH_KEY)
+		/* get current key states */
+		if (key_value & 0xF0) {
+			SET_BIT(cur_event, BIT_STYLUS_KEY);
+		} else if (key_value & 0x0F) {
+			SET_BIT(cur_event, BIT_TOUCH_KEY);
+		}
+#endif
+#else
+		if(tpd_dts_data.use_tpd_button){
+			/* get current key states */
+			if (key_value & 0xF0) {
+				SET_BIT(cur_event, BIT_STYLUS_KEY);
+			} else if (key_value & 0x0F) {
+				SET_BIT(cur_event, BIT_TOUCH_KEY);
+			}
 		}
 #endif
 	}
@@ -1175,7 +1188,7 @@ s32 gt1x_touch_event_handler(u8 * data, struct input_dev * dev, struct input_dev
 		gt1x_pen_up(0);
 	}
 #endif
-
+#if defined(CONFIG_MTK_LEGACY)
 #if GTP_HAVE_TOUCH_KEY
 	if (CHK_BIT(cur_event, BIT_TOUCH_KEY) || CHK_BIT(pre_event, BIT_TOUCH_KEY)) {
 		for (i = 0; i < GTP_MAX_KEY_NUM; i++) {
@@ -1185,6 +1198,20 @@ s32 gt1x_touch_event_handler(u8 * data, struct input_dev * dev, struct input_dev
 			GTP_DEBUG("Key Down.");
 		} else {
 			GTP_DEBUG("Key Up.");
+		}
+	}
+#endif
+#else
+	if(tpd_dts_data.use_tpd_button){
+		if (CHK_BIT(cur_event, BIT_TOUCH_KEY) || CHK_BIT(pre_event, BIT_TOUCH_KEY)) {
+			for (i = 0; i < tpd_dts_data.tpd_key_num; i++) {
+				input_report_key(dev, tpd_dts_data.tpd_key_local[i], key_value & (0x01 << i));
+			}
+			if (CHK_BIT(cur_event, BIT_TOUCH_KEY)) {
+				GTP_DEBUG("Key Down.");
+			} else {
+				GTP_DEBUG("Key Up.");
+			}
 		}
 	}
 #endif
@@ -1706,6 +1733,9 @@ s32 gt1x_init(void)
 		if (ret != 0) {
 			GTP_ERROR("GTP reset guitar failed!");
 			continue;
+		}else{	
+			tpd_load_status = 1;
+			check_flag=true;
 		}
 
 		ret = gt1x_i2c_read_dbl_check(0x41E4, reg_val, 1);

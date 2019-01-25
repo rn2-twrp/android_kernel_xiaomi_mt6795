@@ -10,3 +10,7 @@ endif
 ifeq ($(CONFIG_LEDS_LM3632),y)
 obj-y	+=  lm3632/
 endif
+
+ifeq ($(CONFIG_LEDS_RT8542),y)
+obj-y	+=  rt8542/
+endif

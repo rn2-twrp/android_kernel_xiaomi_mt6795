@@ -68,7 +68,7 @@ static void init_lcm_registers(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel\n", __func__);
+		pr_debug("%s, kernel\n", __func__);
 	#endif
 	
 #if 1
@@ -258,7 +258,7 @@ static void lcm_init(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 	#endif
 	
 	#ifdef BUILD_LK
@@ -315,7 +315,7 @@ static void lcm_suspend(void)
 	#ifdef BUILD_LK
 			printf("%s, LK \n", __func__);
 	#else
-			printk("%s, kernel", __func__);
+			pr_debug("%s, kernel", __func__);
 	#endif
 
 	#ifdef BUILD_LK
@@ -360,7 +360,7 @@ static void lcm_resume(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 	#endif
 	
 #ifdef BUILD_LK
@@ -468,7 +468,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s, LK nt35590 debug: nt35590 id = 0x%08x\n", __func__, id);
     #else
-		printk("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
     #endif
 
     if(id == LCM_ID_NT35590)

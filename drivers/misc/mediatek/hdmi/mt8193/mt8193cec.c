@@ -1,4 +1,4 @@
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
+#ifdef HDMI_MT8193_SUPPORT
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -667,7 +667,6 @@ static void PrintFrameDescription(CEC_FRAME_DESCRIPTION *frame)
 {
 	u8 i;
 
-	MT8193_CEC_LOG("[CEC] >>>>>>>>>>>>>>>>>>>>>>>>\n");
 	MT8193_CEC_LOG("[CEC] frame description:\n");
 	MT8193_CEC_LOG("[CEC] size: 0x%x\n", frame->size);
 	MT8193_CEC_LOG("[CEC] sendidx: 0x%x\n", frame->sendidx);

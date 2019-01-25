@@ -10,25 +10,26 @@
 #include <linux/sensors_io.h>
 #endif
 
+#ifdef CONFIG_OF_TOUCH
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#endif
+
 #if GTP_SUPPORT_I2C_DMA
 #include <linux/dma-mapping.h>
 #endif
 #include <linux/proc_fs.h>  /*proc*/
-
-#if (GTP_SCP_GESTURE_WAKEUP)
-#include <mach/md32_ipi.h>
-#include <mach/md32_helper.h>
-#endif
-
-#ifdef CONFIG_OF
-#include <linux/of.h>
-#include <linux/of_address.h>
-#endif
+#include <linux/sched.h>
 
 extern struct tpd_device *tpd;
 #ifdef VELOCITY_CUSTOM
 extern int tpd_v_magnify_x;
 extern int tpd_v_magnify_y;
+#endif
+
+#if TOUCH_FILTER
+extern struct tpd_filter_t tpd_filter;
+static struct tpd_filter_t tpd_filter_local = TPD_FILTER_PARA;
 #endif
 static int tpd_flag = 0; 
 int tpd_halt = 0;
@@ -42,7 +43,8 @@ extern u8 load_fw_process;
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 DEFINE_MUTEX(i2c_access);
 DEFINE_MUTEX(tp_wr_access);
-void __iomem *fpga_gpio_base; //FPGA
+
+void __iomem *fpga_gpio_base = 0xf0001e00; //FPGA
 
 #ifdef TPD_HAVE_BUTTON
 static int tpd_keys_local[TPD_KEY_COUNT] = TPD_KEYS;
@@ -60,7 +62,11 @@ struct touch_vitual_key_map_t
 static struct touch_vitual_key_map_t touch_key_point_maping_array[]=GTP_KEY_MAP_ARRAY;
 #endif
 
-#if (GTP_SCP_GESTURE_WAKEUP || GTP_SLIDE_WAKEUP)
+#ifdef CONFIG_OF_TOUCH
+unsigned int touch_irq = 0;
+#endif
+
+#if GTP_SLIDE_WAKEUP
 typedef enum
 {
     DOZE_DISABLED = 0,
@@ -69,48 +75,12 @@ typedef enum
 }DOZE_T;
 static DOZE_T doze_status = DOZE_DISABLED;
 static s8 gtp_enter_doze(struct i2c_client *client);
-
-#if GTP_SCP_GESTURE_WAKEUP
-typedef enum
-{
-    //SCP->AP
-    IPI_COMMAND_SA_GESTURE_TYPE,
-
-    //AP->SCP
-    IPI_COMMAND_AS_CUST_PARAMETER,
-    IPI_COMMAND_AS_ENTER_DOZEMODE,
-    IPI_COMMAND_AS_ENABLE_GESTURE,
-    IPI_COMMAND_AS_GESTURE_SWITCH,
-
-}TOUCH_IPI_CMD_T;
-
-typedef struct
-{
-    u32 i2c_num;
-    u32 int_num;
-    u32 io_int;
-    u32 io_rst;
-}Touch_Cust_Setting;
-
-typedef struct 
-{
-    u32 cmd;
-
-    union {
-        u32 data;
-        Touch_Cust_Setting tcs;
-    } param;
-}Touch_IPI_Packet;
-#endif
 #endif
 
 #if GTP_CHARGER_SWITCH
-    #if 0
-        #define CHR_CON0      (0xF7000000+0x2FA00)
-    #else
-        extern kal_bool upmu_is_chr_det(void);
-    #endif
-    static void gtp_charger_switch(s32 dir_update);
+extern int g_bat_init_flag;
+extern kal_bool upmu_is_chr_det(void);
+static void gtp_charger_switch(s32 dir_update);
 #endif 
 
 #if (defined(TPD_WARP_START) && defined(TPD_WARP_END))
@@ -133,19 +103,18 @@ static u32 gpDMABuf_pa = 0;
 
 s32 gtp_send_cfg(struct i2c_client *client);
 void gtp_reset_guitar(struct i2c_client *client, s32 ms);
+#ifdef CONFIG_OF_TOUCH
+static irqreturn_t tpd_eint_interrupt_handler(unsigned irq, struct irq_desc *desc);
+#else
 static void tpd_eint_interrupt_handler(void);
+#endif
 static int touch_event_handler(void *unused);
 static int tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
 static int tpd_i2c_detect(struct i2c_client *client, struct i2c_board_info *info);
 static int tpd_i2c_remove(struct i2c_client *client);
 s32 gtp_i2c_read_dbl_check(struct i2c_client *client, u16 addr, u8 *rxbuf, int len);
-extern void mt_eint_unmask(unsigned int line);
-extern void mt_eint_mask(unsigned int line);
 static void tpd_on(void);
 static void tpd_off(void);
-static void tpd_suspend(struct early_suspend *h);
-static void tpd_resume(struct early_suspend *h);
-
 
 #if 0
 extern void mt65xx_eint_set_hw_debounce(kal_uint8 eintno, kal_uint32 ms);
@@ -220,6 +189,13 @@ static struct i2c_driver tpd_i2c_driver =
 
 static u8 config[GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH]
     = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
+
+#if GTP_CHARGER_SWITCH
+static u8 charger_config[GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH]
+    = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
+static bool is_charger_cfg_updating = false;
+#endif
+
 #ifdef GTP_CHARGER_DETECT
 static u8 config_charger[GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH]
     = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
@@ -238,6 +214,10 @@ u32 abs_x_max = 0;
 u32 abs_y_max = 0;
 u8 gtp_rawdiff_mode = 0;
 u8 cfg_len = 0;
+#if GTP_CHARGER_SWITCH
+u8 charger_cfg_len = 0;
+u8 charger_grp_cfg_version = 0;
+#endif
 u8 grp_cfg_version = 0;
 u8 fixed_config = 0;
 u8 pnl_init_error = 0;
@@ -272,6 +252,7 @@ s32 i2c_read_bytes(struct i2c_client *client, u16 addr, u8 *rxbuf, int len);
 s32 i2c_write_bytes(struct i2c_client *client, u16 addr, u8 *txbuf, int len);
 static struct proc_dir_entry *gt91xx_config_proc = NULL;
 
+#ifdef TPD_REFRESH_RATE
 /*******************************************************
 Function:
 	Write refresh rate
@@ -333,60 +314,11 @@ static ssize_t store_refresh_rate(struct device *dev,struct device_attribute *at
 }
 static DEVICE_ATTR(tpd_refresh_rate, 0664, show_refresh_rate, store_refresh_rate);
 
-#if GTP_SCP_GESTURE_WAKEUP
-static ssize_t show_scp_ctrl(struct device *dev, struct device_attribute *attr, char *buf)
-{
-    return 0;
-}
-static ssize_t store_scp_ctrl(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-    u32 cmd;
-    Touch_IPI_Packet ipi_pkt;
-
-    if (sscanf(buf, "%u", &cmd) != 1) {
-		GTP_ERROR("[SCP_CTRL]: Invalid values\n");
-		return -EINVAL;
-	}
-
-    GTP_INFO("SCP_CTRL: Command=%d", cmd);
-    switch (cmd) 
-    {
-        case 1:
-            // make touch in doze mode
-            tpd_suspend(NULL);
-            break;
-        case 2:
-            tpd_resume(NULL);
-            break;
-        case 3:
-            // emulate in-pocket on
-            ipi_pkt.cmd = IPI_COMMAND_AS_GESTURE_SWITCH, 
-            ipi_pkt.param.data = 1;
-	        md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);    
-            break;
-        case 4:
-            // emulate in-pocket off
-            ipi_pkt.cmd = IPI_COMMAND_AS_GESTURE_SWITCH, 
-            ipi_pkt.param.data = 0;
-	        md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);   
-            break;
-        default:
-            GTP_INFO("[SCP_CTRL] Unkown command");
-            break;
-    }
-
-    return size;
-}
-static DEVICE_ATTR(tpd_scp_ctrl, 0664, show_scp_ctrl, store_scp_ctrl);
-#endif
-
 static struct device_attribute *gt9xx_attrs[] =
 {
 	&dev_attr_tpd_refresh_rate,
-#if GTP_SCP_GESTURE_WAKEUP
-    &dev_attr_tpd_scp_ctrl,   
-#endif    
 };
+#endif
 //=============================================================
 
 
@@ -906,11 +838,8 @@ s32 gtp_i2c_read(struct i2c_client *client, u8 *buf, s32 len)
 {
     s32 ret = -1;
     u16 addr = (buf[0] << 8) + buf[1];
-#if GTP_SUPPORT_I2C_DMA
-	ret = i2c_read_bytes_dma(client, addr, &buf[2], len - 2);
-#else
-	ret = i2c_read_bytes_non_dma(client, addr, &buf[2], len - 2);
-#endif
+
+    ret = i2c_read_bytes_non_dma(client, addr, &buf[2], len - 2);
 
     if (!ret)
     {
@@ -918,7 +847,7 @@ s32 gtp_i2c_read(struct i2c_client *client, u8 *buf, s32 len)
     }
     else
     {
-    #if (GTP_SLIDE_WAKEUP || GTP_SCP_GESTURE_WAKEUP)
+    #if GTP_SLIDE_WAKEUP
         if (DOZE_ENABLED == doze_status)
         {
             return ret;
@@ -1049,7 +978,7 @@ s32 gtp_i2c_write(struct i2c_client *client, u8 *buf, s32 len)
     }
     else
     {
-    #if (GTP_SLIDE_WAKEUP || GTP_SCP_GESTURE_WAKEUP)
+    #if GTP_SLIDE_WAKEUP
         if (DOZE_ENABLED == doze_status)
         {
             return ret;
@@ -1113,6 +1042,62 @@ s32 gtp_send_cfg(struct i2c_client *client)
 }
 
 
+/*******************************************************
+Function:
+    Send charger config Function.
+
+Input:
+    client: i2c client.
+
+Output:
+    Executive outcomes.0--success,non-0--fail.
+*******************************************************/
+#if GTP_CHARGER_SWITCH
+s32 gtp_send_cfg_for_charger(struct i2c_client *client)
+{
+    s32 ret = 1;
+	int check_sum = 0;
+	int i = 0;
+
+#if GTP_DRIVER_SEND_CFG
+    s32 retry = 0;
+
+	GTP_INFO("gtp_send_cfg_for_charger!");
+
+    if (fixed_config)
+    {
+        GTP_INFO("Ic fixed config, no config sent!");
+        return 0;
+    }
+    else if (pnl_init_error)
+    {
+        GTP_INFO("Error occurred in init_panel, no config sent!");
+        return 0;
+    }
+    
+	GTP_DEBUG("gtp_send_cfg_for_charger Send Config");
+	charger_config[2] = 0x00;
+	check_sum = 0;
+	for (i = GTP_ADDR_LENGTH; i < charger_cfg_len; i++)
+	{
+		check_sum += charger_config[i];
+	}
+	charger_config[charger_cfg_len] = (~check_sum) + 1;
+	
+    for (retry = 0; retry < 5; retry++)
+    {
+        ret = gtp_i2c_write(client, charger_config, GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH);
+
+        if (ret > 0)
+        {
+            break;
+        }
+    }
+#endif
+    return ret;
+}
+
+#endif
 /*******************************************************
 Function:
     Read goodix touchscreen version function.
@@ -1253,6 +1238,22 @@ static s32 gtp_init_panel(struct i2c_client *client)
                           CFG_GROUP_LEN(cfg_info_group5),
                           CFG_GROUP_LEN(cfg_info_group6)};
 
+	#if GTP_CHARGER_SWITCH
+	u8 cfg_info_group1_charger[] = CTP_CFG_GROUP1_CHARGER;
+
+    u8 *send_charger_cfg_buf[] = {cfg_info_group1_charger, cfg_info_group2, cfg_info_group3,
+                        cfg_info_group4, cfg_info_group5, cfg_info_group6};
+    u8 charger_cfg_info_len[] = { CFG_GROUP_LEN(cfg_info_group1_charger), 
+                          			CFG_GROUP_LEN(cfg_info_group2),
+                          			CFG_GROUP_LEN(cfg_info_group3),
+                          			CFG_GROUP_LEN(cfg_info_group4), 
+                          			CFG_GROUP_LEN(cfg_info_group5),
+                          			CFG_GROUP_LEN(cfg_info_group6)};
+	GTP_DEBUG("Charger Config Groups\' Lengths: %d, %d, %d, %d, %d, %d", 
+        charger_cfg_info_len[0], charger_cfg_info_len[1], charger_cfg_info_len[2], charger_cfg_info_len[3],
+        charger_cfg_info_len[4], charger_cfg_info_len[5]);
+	#endif
+
     GTP_DEBUG("Config Groups\' Lengths: %d, %d, %d, %d, %d, %d", 
         cfg_info_len[0], cfg_info_len[1], cfg_info_len[2], cfg_info_len[3],
         cfg_info_len[4], cfg_info_len[5]);
@@ -1302,7 +1303,18 @@ static s32 gtp_init_panel(struct i2c_client *client)
     }
     
     cfg_len = cfg_info_len[sensor_id];
-    
+	#if GTP_CHARGER_SWITCH
+    charger_cfg_len = charger_cfg_info_len[sensor_id];
+    GTP_INFO("CHARGER_CTP_CONFIG_GROUP%d used, config length: %d", sensor_id + 1, charger_cfg_len); 
+
+	if(charger_cfg_len < GTP_CONFIG_MIN_LENGTH)
+	{
+		GTP_ERROR("CHARGER_CTP_CONFIG_GROUP%d is INVALID CONFIG GROUP! NO Config Sent! You need to check you header file CFG_GROUP section!", sensor_id+1);
+        pnl_init_error = 1;
+        return -1;
+	}
+	#endif
+	
     GTP_INFO("CTP_CONFIG_GROUP%d used, config length: %d", sensor_id + 1, cfg_len);
     
     if (cfg_len < GTP_CONFIG_MIN_LENGTH)
@@ -1331,6 +1343,10 @@ static s32 gtp_init_panel(struct i2c_client *client)
             {
                 grp_cfg_version = send_cfg_buf[sensor_id][0];       // backup group config version
                 send_cfg_buf[sensor_id][0] = 0x00;
+                #if GTP_CHARGER_SWITCH
+				charger_grp_cfg_version = send_charger_cfg_buf[sensor_id][0];
+				send_charger_cfg_buf[sensor_id][0] = 0x00;
+				#endif				
                 fixed_config = 0;
             }
             else        // treated as fixed config, not send config
@@ -1349,6 +1365,11 @@ static s32 gtp_init_panel(struct i2c_client *client)
     memset(&config[GTP_ADDR_LENGTH], 0, GTP_CONFIG_MAX_LENGTH);
     memcpy(&config[GTP_ADDR_LENGTH], send_cfg_buf[sensor_id], cfg_len);
 
+	#if GTP_CHARGER_SWITCH
+	memset(&charger_config[GTP_ADDR_LENGTH], 0, GTP_CONFIG_MAX_LENGTH);
+	memcpy(&charger_config[GTP_ADDR_LENGTH], send_charger_cfg_buf[sensor_id], charger_cfg_len);
+	#endif
+
 #if GTP_CUSTOM_CFG
     config[RESOLUTION_LOC]     = (u8)GTP_MAX_WIDTH;
     config[RESOLUTION_LOC + 1] = (u8)(GTP_MAX_WIDTH>>8);
@@ -1363,6 +1384,23 @@ static s32 gtp_init_panel(struct i2c_client *client)
     {
         config[TRIGGER_LOC] |= 0x01;
     }
+	
+	#if GTP_CHARGER_SWITCH
+    charger_config[RESOLUTION_LOC]     = (u8)GTP_MAX_WIDTH;
+    charger_config[RESOLUTION_LOC + 1] = (u8)(GTP_MAX_WIDTH>>8);
+    charger_config[RESOLUTION_LOC + 2] = (u8)GTP_MAX_HEIGHT;
+    charger_config[RESOLUTION_LOC + 3] = (u8)(GTP_MAX_HEIGHT>>8);
+    
+    if (GTP_INT_TRIGGER == 0)  //RISING
+    {
+        charger_config[TRIGGER_LOC] &= 0xfe; 
+    }
+    else if (GTP_INT_TRIGGER == 1)  //FALLING
+    {
+        charger_config[TRIGGER_LOC] |= 0x01;
+    }	
+	#endif
+	
 #endif  // GTP_CUSTOM_CFG
     
     check_sum = 0;
@@ -1371,6 +1409,16 @@ static s32 gtp_init_panel(struct i2c_client *client)
         check_sum += config[i];
     }
     config[cfg_len] = (~check_sum) + 1;
+
+	#if GTP_CHARGER_SWITCH
+    check_sum = 0;
+    for (i = GTP_ADDR_LENGTH; i < charger_cfg_len; i++)
+    {
+        check_sum += charger_config[i];
+    }
+    charger_config[charger_cfg_len] = (~check_sum) + 1;
+	#endif
+
     
 #else // DRIVER NOT SEND CONFIG
     cfg_len = GTP_CONFIG_MAX_LENGTH;
@@ -1420,11 +1468,15 @@ static s32 gtp_init_panel(struct i2c_client *client)
 #endif
     {
     #if GTP_DRIVER_SEND_CFG
+		#if GTP_CHARGER_SWITCH
+			gtp_charger_switch(1);
+		#else
         ret = gtp_send_cfg(client);
         if (ret < 0)
         {
             GTP_ERROR("Send config error.");
         }
+		#endif
         // set config version to CTP_CFG_GROUP
         // for resume to send config
         config[GTP_ADDR_LENGTH] = grp_cfg_version;
@@ -1434,6 +1486,18 @@ static s32 gtp_init_panel(struct i2c_client *client)
             check_sum += config[i];
         }
         config[cfg_len] = (~check_sum) + 1;
+
+		/**********************/
+		#if GTP_CHARGER_SWITCH
+        charger_config[GTP_ADDR_LENGTH] = charger_grp_cfg_version;
+        check_sum = 0;
+        for (i = GTP_ADDR_LENGTH; i < charger_cfg_len; i++)
+        {
+            check_sum += charger_config[i];
+        }
+        charger_config[charger_cfg_len] = (~check_sum) + 1;
+		#endif
+		/**********************/		
     #endif
         GTP_INFO("X_MAX = %d, Y_MAX = %d, TRIGGER = 0x%02x",
             abs_x_max,abs_y_max,int_type);
@@ -1529,15 +1593,16 @@ reset_proc:
 
 #else   // ( defined(MT6575) || defined(MT6577) || defined(MT6589) )
 
+#if GTP_POWER_CTRL_SLEEP
     #ifdef TPD_POWER_SOURCE_CUSTOM
-        //hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
+        hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
     #else
         hwPowerOn(MT65XX_POWER_LDO_VGP2, VOL_2800, "TP");
     #endif
     #ifdef TPD_POWER_SOURCE_1800
         hwPowerOn(TPD_POWER_SOURCE_1800, VOL_1800, "TP");
     #endif
-
+#endif
 #endif
 
     gtp_reset_guitar(client, 20);
@@ -1597,7 +1662,7 @@ void gtp_get_chip_type(struct i2c_client *client)
     {
         GTP_ERROR("Failed to get chip-type, set chip type default: GOODIX_GT9");
         gtp_chip_type = CHIP_TYPE_GT9;
-	tpd_load_status = 0;
+	    tpd_load_status = 0;
         return;
     }
     
@@ -1956,61 +2021,56 @@ exit_clk_proc:
 #endif
 //************* For GT9XXF End **********************//
 
-#if GTP_SCP_GESTURE_WAKEUP
-void gtp_ipi_handler(int id, void *data, uint len)
-{
-    if (data == NULL)
-    {
-        GTP_ERROR("GTP_IPI wakeup parameter failed");
-        return;
-    }
-
-    if (doze_status != DOZE_ENABLED)
-    {
-        GTP_ERROR("GTP_IPI doze status is not enabled (%d)", doze_status);
-        return;
-    }
-
-    if (IPI_COMMAND_SA_GESTURE_TYPE == ((Touch_IPI_Packet *)data)->cmd)
-    {
-        switch (((Touch_IPI_Packet *)data)->param.data)
-        {
-            case 'a' ... 'z':   // character gesture
-            case 0x5E:          // (^) gesture
-            case 0xAA:          //slide right
-            case 0xBB:          //slide left
-            case 0xAB:          //slide Down
-            case 0xBA:          //slide up
-            case 0xCC:          //Double click                
-                GTP_INFO("GTP_IPI command (%d) to light up the screen!", ((Touch_IPI_Packet *)data)->param.data);
-                doze_status = DOZE_WAKEUP;
-                    
-                input_report_key(tpd->dev, KEY_POWER, 1);
-                input_sync(tpd->dev);
-                input_report_key(tpd->dev, KEY_POWER, 0);
-                input_sync(tpd->dev);        
-                break;
-            default:
-                GTP_INFO("GTP_IPI Gesture no match!");
-                break;
-        }  
-    }
-    else
-    {
-        GTP_ERROR("GTP_IPI command no support!");
-    }
-}
-#endif
-
 static const struct file_operations gt_upgrade_proc_fops = { 
     .write = gt91xx_config_write_proc,
     .read = gt91xx_config_read_proc
 };
 
+#ifdef CONFIG_OF_TOUCH 
+static int tpd_irq_registration(void)
+{
+	struct device_node *node = NULL;
+	int ret = 0;
+	u32 ints[2] = {0,0};
+	
+	node = of_find_compatible_node(NULL, NULL, "mediatek, TOUCH_PANEL-eint");
+	if(node){
+		of_property_read_u32_array(node , "debounce", ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		touch_irq = irq_of_parse_and_map(node, 0);
+		
+		if (!int_type)	//EINTF_TRIGGER
+		{
+			ret = request_irq(touch_irq, tpd_eint_interrupt_handler, EINTF_TRIGGER_RISING, "TOUCH_PANEL-eint", NULL);
+            gtp_eint_trigger_type = EINTF_TRIGGER_RISING;
+			if(ret > 0){
+			    ret = -1;
+			    GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
+			}
+		}
+		else
+		{
+			ret = request_irq(touch_irq, tpd_eint_interrupt_handler, EINTF_TRIGGER_FALLING, "TOUCH_PANEL-eint", NULL);
+            gtp_eint_trigger_type = EINTF_TRIGGER_FALLING;
+			if(ret > 0){
+			    ret = -1;
+			    GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
+			}
+		}
+	}else{
+		GTP_ERROR("tpd request_irq can not find touch eint device node!.");
+		ret = -1;
+	}
+	GTP_INFO("[%s]irq:%d, debounce:%d-%d:", __func__, touch_irq, ints[0], ints[1]);
+	return ret;
+}
+#endif
+
 static int tpd_registration(struct i2c_client *client)
 {
 		s32 err = 0;
-		s32 ret = 0;		
+		s32 ret = 0;
 		u16 version_info;
 #if GTP_HAVE_TOUCH_KEY
 		s32 idx = 0;
@@ -2018,44 +2078,45 @@ static int tpd_registration(struct i2c_client *client)
 #ifdef TPD_PROXIMITY
 		struct hwmsen_object obj_ps;
 #endif
-#if GTP_SCP_GESTURE_WAKEUP
-        Touch_IPI_Packet ipi_pkt;
-#endif
 
-        GTP_ERROR("tpd registration start.");
+	    GTP_INFO("tpd registration start.");
 
 		i2c_client_point = client;
 		ret = tpd_power_on(client);
-	
+
 		if (ret < 0)
 		{
 			GTP_ERROR("I2C communication ERROR!");
 		}
-		
+
 	//#ifdef VELOCITY_CUSTOM
  #if 0
-	
+
 		if ((err = misc_register(&tpd_misc_device)))
 		{
-			printk("mtk_tpd: tpd_misc_device register failed\n");
+			pr_warn("mtk_tpd: tpd_misc_device register failed\n");
 		}
-	
+
 #endif
 #ifdef VELOCITY_CUSTOM
 		tpd_v_magnify_x = TPD_VELOCITY_CUSTOM_X;
 		tpd_v_magnify_y = TPD_VELOCITY_CUSTOM_Y;
-	
+
 #endif
-	
+#if TOUCH_FILTER
+		memcpy(&tpd_filter, &tpd_filter_local, sizeof(struct tpd_filter_t));
+
+#endif
+
 		ret = gtp_read_version(client, &version_info);
-	
+
 		if (ret < 0)
 		{
 			GTP_ERROR("Read version failed.");
-		}	 
-		
+		}
+
 		ret = gtp_init_panel(client);
-	
+
 		if (ret < 0)
 		{
 			GTP_ERROR("GTP init panel failed.");
@@ -2090,32 +2151,9 @@ static int tpd_registration(struct i2c_client *client)
 		}
 	
 #endif
-
-#if GTP_SCP_GESTURE_WAKEUP
-    ret = get_md32_semaphore(SEMAPHORE_TOUCH);
-    if (ret < 0)
-    {
-        GTP_ERROR("[TOUCH] HW semaphore reqiure timeout\n");
-    }
-
-    md32_ipi_registration(IPI_TOUCH, gtp_ipi_handler, "TOUCH IPI");
-
-    ipi_pkt.cmd = IPI_COMMAND_AS_CUST_PARAMETER;
-    ipi_pkt.param.tcs.i2c_num = TPD_I2C_NUMBER;
-    ipi_pkt.param.tcs.int_num = CUST_EINT_TOUCH_PANEL_NUM;
-    ipi_pkt.param.tcs.io_int = GPIO_CTP_EINT_PIN;
-    ipi_pkt.param.tcs.io_rst = GPIO_CTP_RST_PIN;
-    ret = md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-    if (ret < 0)
-    {
-        GTP_ERROR("[TOUCH] IPI cmd failed (%d)\n", ipi_pkt.cmd);        
-    }   
-    input_set_capability(tpd->dev, EV_KEY, KEY_POWER);
-
-#elif GTP_SLIDE_WAKEUP
-    input_set_capability(tpd->dev, EV_KEY, KEY_POWER);
+#if GTP_SLIDE_WAKEUP
+		input_set_capability(tpd->dev, EV_KEY, KEY_POWER);
 #endif
-
 		
 #if GTP_WITH_PEN
 		// pen support
@@ -2124,16 +2162,16 @@ static int tpd_registration(struct i2c_client *client)
 		//__set_bit(INPUT_PROP_POINTER, tpd->dev->propbit); // 20130722
 #endif
 		// set INT mode
-		#if 0 //FPGA
 		mt_set_gpio_mode(GPIO_CTP_EINT_PIN, GPIO_CTP_EINT_PIN_M_EINT);
 		mt_set_gpio_dir(GPIO_CTP_EINT_PIN, GPIO_DIR_IN);
 		mt_set_gpio_pull_enable(GPIO_CTP_EINT_PIN, GPIO_PULL_DISABLE);
-        #endif
-    
-		msleep(50);
 	
-	//#ifdef MT6572
-#if 1
+		msleep(50);
+
+#ifdef CONFIG_OF_TOUCH
+        /* EINT device tree, default EINT enable */
+		tpd_irq_registration();
+#else
 		if (!int_type)	//EINTF_TRIGGER
 		{
 			mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, EINTF_TRIGGER_RISING, tpd_eint_interrupt_handler, 1);
@@ -2144,23 +2182,9 @@ static int tpd_registration(struct i2c_client *client)
 			mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, EINTF_TRIGGER_FALLING, tpd_eint_interrupt_handler, 1);
             gtp_eint_trigger_type = EINTF_TRIGGER_FALLING;
 		}
-		
-#else
-		mt65xx_eint_set_sens(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_SENSITIVE);
-		mt65xx_eint_set_hw_debounce(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_DEBOUNCE_CN);
-	
-		if (!int_type)
-		{
-			mt65xx_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_DEBOUNCE_EN, CUST_EINT_POLARITY_HIGH, tpd_eint_interrupt_handler, 1);
-		}
-		else
-		{
-			mt65xx_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_DEBOUNCE_EN, CUST_EINT_POLARITY_LOW, tpd_eint_interrupt_handler, 1);
-		}
-#endif
-	
 		mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
-	
+#endif
+
 #if GTP_AUTO_UPDATE
 		ret = gup_init_update_proc(client);
 	
@@ -2185,7 +2209,7 @@ static int tpd_registration(struct i2c_client *client)
 #if GTP_ESD_PROTECT
 		gtp_esd_switch(client, SWITCH_ON);
 #endif
-	   GTP_ERROR("tpd registration done.");
+	   GTP_INFO("tpd registration done.");
 		return 0;
 }
 static s32 tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -2215,6 +2239,19 @@ static s32 tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *
 	return 0;
 }
 
+#ifdef CONFIG_OF_TOUCH
+static irqreturn_t tpd_eint_interrupt_handler(unsigned irq, struct irq_desc *desc)
+{
+	TPD_DEBUG_PRINT_INT;
+		
+	tpd_flag = 1;
+	/* enter EINT handler disable INT, make sure INT is disable when handle touch event including top/bottom half */
+	/* use _nosync to avoid deadlock */
+	disable_irq_nosync(touch_irq);
+	wake_up_interruptible(&waiter);
+    return IRQ_HANDLED;
+}
+#else
 static void tpd_eint_interrupt_handler(void)
 {
     TPD_DEBUG_PRINT_INT;
@@ -2223,6 +2260,8 @@ static void tpd_eint_interrupt_handler(void)
     
     wake_up_interruptible(&waiter);
 }
+#endif
+
 static int tpd_i2c_remove(struct i2c_client *client)
 {
 #if GTP_CREATE_WR_NODE
@@ -2248,7 +2287,11 @@ void force_reset_guitar(void)
 	}
     GTP_INFO("force_reset_guitar");
 	is_reseting = 1;
+#ifdef CONFIG_OF_TOUCH
+	disable_irq(touch_irq);
+#else
     mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif
 
     GTP_GPIO_OUTPUT(GTP_RST_PORT, 0);   
     GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
@@ -2263,11 +2306,14 @@ void force_reset_guitar(void)
     msleep(30);
 #else           // ( defined(MT6575) || defined(MT6577) || defined(MT6589) )
     // Power off TP
+#if GTP_POWER_CTRL_SLEEP
+
     #ifdef TPD_POWER_SOURCE_CUSTOM
-        //hwPowerDown(TPD_POWER_SOURCE_CUSTOM, "TP");
+        hwPowerDown(TPD_POWER_SOURCE_CUSTOM, "TP");
     #else
         hwPowerDown(MT65XX_POWER_LDO_VGP2, "TP");
     #endif
+
 #ifdef TPD_POWER_SOURCE_1800
 	hwPowerDown(TPD_POWER_SOURCE_1800, "TP");
 #endif
@@ -2275,16 +2321,21 @@ void force_reset_guitar(void)
 
     // Power on TP
     #ifdef TPD_POWER_SOURCE_CUSTOM
-        //hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
+        hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
     #else
         hwPowerOn(MT65XX_POWER_LDO_VGP2, VOL_2800, "TP");
     #endif
         msleep(30);
 
 #endif
+#endif
 
+#ifdef CONFIG_OF_TOUCH
+	enable_irq(touch_irq);
+#else
     mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
-    
+#endif 
+
     for (i = 0; i < 5; i++)
     {
         //Reset Guitar
@@ -2381,12 +2432,8 @@ static void gtp_esd_check_func(struct work_struct *work)
     //mutex_lock(&i2c_access);
     for (i = 0; i < 3; i++)
     {
-    #if GTP_SUPPORT_I2C_DMA
-		ret = i2c_read_bytes_dma(i2c_client_point, 0x8040, esd_buf, 2);
-	#else
-		ret = i2c_read_bytes_non_dma(i2c_client_point, 0x8040, esd_buf, 2);
-	#endif
-
+        ret = i2c_read_bytes_non_dma(i2c_client_point, 0x8040, esd_buf, 2);
+        
         GTP_DEBUG("[Esd]0x8040 = 0x%02X, 0x8041 = 0x%02X", esd_buf[0], esd_buf[1]);
         if (ret < 0)
         {
@@ -2398,11 +2445,8 @@ static void gtp_esd_check_func(struct work_struct *work)
             if ((esd_buf[0] == 0xAA) || (esd_buf[1] != 0xAA))
             {
                 u8 chk_buf[2] = {0x00};
-				#if GTP_SUPPORT_I2C_DMA
-				i2c_read_bytes_dma(i2c_client_point, 0x8040, chk_buf, 2);
-				#else
-				i2c_read_bytes_non_dma(i2c_client_point, 0x8040, chk_buf, 2);
-				#endif
+                i2c_read_bytes_non_dma(i2c_client_point, 0x8040, chk_buf, 2);
+                
                 GTP_DEBUG("[Check]0x8040 = 0x%02X, 0x8041 = 0x%02X", chk_buf[0], chk_buf[1]);
                 
                 if ( (chk_buf[0] == 0xAA) || (chk_buf[1] != 0xAA) )
@@ -2451,11 +2495,7 @@ static void gtp_esd_check_func(struct work_struct *work)
 		u8 temp = 0;
 		while(retry++ < 3)
 		{
-			#if GTP_SUPPORT_I2C_DMA
-			ret = i2c_read_bytes_dma(i2c_client_point, 0x8140, versionBuff, sizeof(versionBuff));
-			#else
-			ret = i2c_read_bytes_non_dma(i2c_client_point, 0x8140, versionBuff, sizeof(versionBuff));
-			#endif
+			ret = i2c_read_bytes_non_dma(i2c_client_point, 0x8140, versionBuff, 4);
 			if(ret < 0)
 			{
 				continue;
@@ -2497,6 +2537,12 @@ static void gtp_esd_check_func(struct work_struct *work)
 static int tpd_history_x=0, tpd_history_y=0;
 static void tpd_down(s32 x, s32 y, s32 size, s32 id)
 {
+#if GTP_CHARGER_SWITCH
+	if(is_charger_cfg_updating){
+		pr_warn("tpd_down ignored when CFG changing\n");
+		return;
+	}
+#endif
     if ((!size) && (!id))
     {
         input_report_abs(tpd->dev, ABS_MT_PRESSURE, 100);
@@ -2532,12 +2578,19 @@ static void tpd_down(s32 x, s32 y, s32 size, s32 id)
 
 static void tpd_up(s32 x, s32 y, s32 id)
 {
+#if GTP_CHARGER_SWITCH
+	if(is_charger_cfg_updating){
+		pr_warn("tpd_up change is_charger_cfg_updating status\n");
+		is_charger_cfg_updating = false;
+		return;
+	}
+#endif
     //input_report_abs(tpd->dev, ABS_MT_PRESSURE, 0);
     input_report_key(tpd->dev, BTN_TOUCH, 0);
     //input_report_abs(tpd->dev, ABS_MT_TOUCH_MAJOR, 0);
     input_mt_sync(tpd->dev);
     TPD_DEBUG_SET_TIME;
-    TPD_EM_PRINT(tpd_history_x, tpd_history_y, tpd_history_x, tpd_history_y, id, 0);    
+	TPD_EM_PRINT(tpd_history_x, tpd_history_y, tpd_history_x, tpd_history_y, id, 0);
     tpd_history_x=0;
     tpd_history_y=0;
     //MMProfileLogEx(MMP_TouchPanelEvent, MMProfileFlagPulse, 0, x+y);
@@ -2552,24 +2605,43 @@ static void tpd_up(s32 x, s32 y, s32 id)
 #endif
 }
 #if GTP_CHARGER_SWITCH
+static u64 CFG_time_interval = 0;
 static void gtp_charger_switch(s32 dir_update)
 {
     u32 chr_status = 0;
     u8 chr_cmd[3] = {0x80, 0x40};
     static u8 chr_pluggedin = 0;
     int ret = 0;
-    
+	u8 buf[3] = {0x81, 0xaa, 0};
+	u64 cfg_timestamp = 0;
+	
+	
 #if 0 //6573
     chr_status = *(volatile u32 *)CHR_CON0;
     chr_status &= (1 << 13);
 #else   // ( defined(MT6575) || defined(MT6577) || defined(MT6589) )
+	if (!g_bat_init_flag) return;
     chr_status = upmu_is_chr_det();
 #endif
-    
+
+    gtp_i2c_read(i2c_client_point,buf,sizeof(buf));
+	if(buf[2] == 0x55)
+	{
+		GTP_INFO("GTP gtp_charger_switch in Hotknot status CFG update ignored");
+		return;
+	}
+	
     if (chr_status)     // charger plugged in
     {
         if (!chr_pluggedin || dir_update)
         {
+        	cfg_timestamp = sched_clock();
+			if((cfg_timestamp - CFG_time_interval)<500000000){
+				GTP_INFO("Update CFG Operation too fast, ignored");
+				return;
+			}
+			
+        	gtp_send_cfg_for_charger(i2c_client_point);
             chr_cmd[2] = 6;
             ret = gtp_i2c_write(i2c_client_point, chr_cmd, 3);
             if (ret > 0)
@@ -2577,12 +2649,24 @@ static void gtp_charger_switch(s32 dir_update)
                 GTP_INFO("Update status for Charger Plugin");
             }
             chr_pluggedin = 1;
+			if(dir_update!=1)
+				is_charger_cfg_updating = true;
+			
+			CFG_time_interval = cfg_timestamp;
+
         }
     }
     else            // charger plugged out
     {
         if (chr_pluggedin || dir_update)
         {
+            cfg_timestamp = sched_clock();
+			if((cfg_timestamp - CFG_time_interval)<500000000){
+				GTP_INFO("Update CFG Operation too fast, ignored");
+				return;
+			}
+			
+        	gtp_send_cfg(i2c_client_point);
             chr_cmd[2] = 7;
             ret = gtp_i2c_write(i2c_client_point, chr_cmd, 3);
             if (ret > 0)
@@ -2590,6 +2674,10 @@ static void gtp_charger_switch(s32 dir_update)
                 GTP_INFO("Update status for Charger Plugout");
             }
             chr_pluggedin = 0;
+			if(dir_update!=1)
+				is_charger_cfg_updating = true;
+			
+			CFG_time_interval = cfg_timestamp;
         }
     }
 }
@@ -2636,6 +2724,9 @@ static int touch_event_handler(void *unused)
 #if GTP_SLIDE_WAKEUP
     u8 doze_buf[3] = {0x81, 0x4B};
 #endif
+#if 0 //G_DEBUG
+    u8 g_buffer[3] = {0x30, 0x14};
+#endif
 
     sched_setscheduler(current, SCHED_RR, &param);
     do
@@ -2649,49 +2740,30 @@ static int touch_event_handler(void *unused)
 	      else
 	      {
 		      msleep(tpd_polling_time);
-	      }    	
-        
+			}
+
         set_current_state(TASK_RUNNING);
-    	  mutex_lock(&i2c_access);
-    #if GTP_CHARGER_SWITCH
-        gtp_charger_switch(0);
-    #endif
+    	mutex_lock(&i2c_access);
 
-#if 0 //vin doze mode verify
-#if GTP_SCP_GESTURE_WAKEUP
-        if (DOZE_ENABLED == doze_status)
-        {
-            u8 doze_buf[3] = {0x81, 0x4B};
-            
-            GTP_INFO("########################## Forward slide to light up the screen!");
-            ret = gtp_i2c_read(i2c_client_point, doze_buf, 3);
-            GTP_INFO("0x814B = 0x%02X", doze_buf[2]);
-
-            doze_buf[0] = 0x80; doze_buf[1] = 0x40;
-            ret = gtp_i2c_read(i2c_client_point, doze_buf, 3);
-            GTP_INFO("0x8040 = 0x%02X", doze_buf[2]);            
-
-            // clear 0x814B
-            doze_buf[0] = 0x81; doze_buf[1] = 0x4B;
-            doze_buf[2] = 0x00;
-            gtp_i2c_write(i2c_client_point, doze_buf, 3);
-            //doze_status = DOZE_WAKEUP;          
-            mutex_unlock(&i2c_access);
-            continue;
-        }
-#endif    
+#if GTP_CHARGER_SWITCH
+		gtp_charger_switch(0);
 #endif
 
+#if 0//G_DEBUG
+    ret = gtp_i2c_read(i2c_client_point, g_buffer, 3);
+	pr_warn("mtk-tpd:0x3014:value %x\n", g_buffer[2]);
+	if (ret > 0 && (g_buffer[2] == 0x1d))/* 0x001d: 1640hz;0x004b:4292hz */
+		pr_warn("low report rate:0x3014:value %x\n", g_buffer[2]);
+
+#endif
     #if GTP_SLIDE_WAKEUP
         if (DOZE_ENABLED == doze_status)
         {
             ret = gtp_i2c_read(i2c_client_point, doze_buf, 3);
             GTP_DEBUG("0x814B = 0x%02X", doze_buf[2]);
-            if (ret > 0)
-            {               
-                if (0xAA == doze_buf[2])
-                {
-                    GTP_INFO("Forward slide to light up the screen!");
+			if (ret > 0) {
+				if (0xAA == doze_buf[2]) {
+					GTP_INFO("Forward slide to light up the screen!");
                     doze_status = DOZE_WAKEUP;
                     input_report_key(tpd->dev, KEY_POWER, 1);
                     input_sync(tpd->dev);
@@ -2817,7 +2889,13 @@ static int touch_event_handler(void *unused)
 		    if(!hotknot_paired_flag)
 		#endif
 			{
-	            mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+			
+#ifdef CONFIG_OF_TOUCH
+				enable_irq(touch_irq);
+#else
+				mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif 
+
 	            mutex_unlock(&i2c_access);
 	            GTP_INFO("buffer not ready");
 	            continue;
@@ -2978,14 +3056,14 @@ static int touch_event_handler(void *unused)
             for (i = 0; i < TPD_KEY_COUNT; i++)
             {
                 //input_report_key(tpd->dev, touch_key_array[i], key_value & (0x01 << i));
-		if( key_value&(0x01<<i) ) //key=1 menu ;key=2 home; key =4 back;
-		{
-			input_x =touch_key_point_maping_array[i].point_x;
-			input_y = touch_key_point_maping_array[i].point_y;
-			GTP_DEBUG("button =%d %d",input_x,input_y);
-				   
-			tpd_down( input_x, input_y, 0, 0);
-		}
+				if( key_value&(0x01<<i) ) //key=1 menu ;key=2 home; key =4 back;
+				{
+					input_x =touch_key_point_maping_array[i].point_x;
+					input_y = touch_key_point_maping_array[i].point_y;
+					GTP_DEBUG("button =%d %d",input_x,input_y);
+						   
+					tpd_down( input_x, input_y, 0, 0);
+				}
             }
 			
 	    if((pre_key!=0)&&(key_value ==0))
@@ -3042,11 +3120,11 @@ static int touch_event_handler(void *unused)
             #endif
                 GTP_DEBUG("Touch Release!");
                 tpd_up(0, 0, 0);
-         }
-	     else
-	     {
+        }
+	    else
+	    {
 	       GTP_DEBUG("Additional Eint!");
-	      }
+	    }
         pre_touch = touch_num;
  
         if (tpd != NULL && tpd->dev != NULL)
@@ -3065,7 +3143,12 @@ exit_work_func:
                 GTP_INFO("I2C write end_cmd  error!");
             }
         }
-	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);	
+
+#ifdef CONFIG_OF_TOUCH
+		enable_irq(touch_irq);
+#else
+    	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif 	
     	mutex_unlock(&i2c_access);
 
     } while (!kthread_should_stop());
@@ -3085,7 +3168,7 @@ static int tpd_local_init(void)
 #endif
 
 #if GTP_SUPPORT_I2C_DMA
-    gpDMABuf_va = (u8 *)dma_alloc_coherent(NULL, GTP_DMA_MAX_TRANSACTION_LENGTH, &gpDMABuf_pa, GFP_KERNEL);
+    gpDMABuf_va = (u8 *)dma_alloc_coherent(NULL, GTP_DMA_MAX_TRANSACTION_LENGTH, (dma_addr_t *)&gpDMABuf_pa, GFP_KERNEL);
     if(!gpDMABuf_va){
         GTP_INFO("[Error] Allocate DMA I2C Buffer failed!\n");
     }
@@ -3124,14 +3207,13 @@ static int tpd_local_init(void)
     tpd->dev->id.product = tpd_info.pid;
     tpd->dev->id.version = tpd_info.vid;
 
-    GTP_INFO("end %s, %d\n", __FUNCTION__, __LINE__);
+	GTP_INFO("end %s, %d\n", __func__, __LINE__);
     tpd_type_cap = 1;
 
     return 0;
 }
 
-#if (GTP_SCP_GESTURE_WAKEUP || GTP_SLIDE_WAKEUP)
-
+#if GTP_SLIDE_WAKEUP
 static s8 gtp_enter_doze(struct i2c_client *client)
 {
     s8 ret = -1;
@@ -3373,9 +3455,20 @@ static s8 gtp_wakeup_sleep(struct i2c_client *client)
             GTP_DEBUG("power wakeup, reset guitar");
             doze_status = DOZE_DISABLED;
             
-            mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+#ifdef CONFIG_OF_TOUCH
+			disable_irq(touch_irq);
+#else
+			mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif
+
             gtp_reset_guitar(client, 20);
-            mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+			
+#ifdef CONFIG_OF_TOUCH
+			enable_irq(touch_irq);
+#else
+			mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif 
+
         }
         else
         {
@@ -3385,11 +3478,6 @@ static s8 gtp_wakeup_sleep(struct i2c_client *client)
             gtp_init_ext_watchdog(client);
         #endif
         }
-    #elif (GTP_SCP_GESTURE_WAKEUP)
-        GTP_DEBUG("power wakeup, reset guitar");
-        mt_eint_mask(GTP_EINT_NUMBER);
-        gtp_reset_guitar(client, 20);
-        mt_eint_unmask(GTP_EINT_NUMBER);   
     #else
 //        if (chip_gt9xxs == 1) 
 //        {
@@ -3474,28 +3562,16 @@ static void tpd_suspend(struct early_suspend *h)
 
     mutex_lock(&i2c_access);
 
-#if GTP_SCP_GESTURE_WAKEUP 
-    ret = gtp_enter_doze(i2c_client_point);
-    if (ret < 0)
-    {
-        GTP_ERROR("GTP Enter Doze mode failed\n");
-    }
-    else
-    {
-        Touch_IPI_Packet ipi_pkt={.cmd = IPI_COMMAND_AS_ENABLE_GESTURE, .param.data = 1};
-        md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-    }
-
-    ret = release_md32_semaphore(SEMAPHORE_TOUCH);
-    if (ret < 0)
-    {
-        GTP_ERROR("GTP release md32 sem failed\n");
-    }
-    mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
-#elif GTP_SLIDE_WAKEUP
+#if GTP_SLIDE_WAKEUP
     ret = gtp_enter_doze(i2c_client_point);
 #else
-    mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+
+#ifdef CONFIG_OF_TOUCH
+	disable_irq(touch_irq);
+#else
+	mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif
+
     ret = gtp_enter_sleep(i2c_client_point);
     if (ret < 0)
     {
@@ -3512,7 +3588,7 @@ static void tpd_resume(struct early_suspend *h)
 {
     s32 ret = -1;
 
-    printk("mtk-tpd: %s start\n", __FUNCTION__);
+	pr_warn("mtk-tpd: %s start\n", __func__);
 #ifdef TPD_PROXIMITY
 
     if (tpd_proximity_flag == 1)
@@ -3521,20 +3597,6 @@ static void tpd_resume(struct early_suspend *h)
     }
 
 #endif
-
-#if GTP_SCP_GESTURE_WAKEUP
-    ret = get_md32_semaphore(SEMAPHORE_TOUCH);
-    if (ret < 0)
-    {
-        GTP_ERROR("[TOUCH] HW semaphore reqiure timeout\n");
-    }
-    else
-    {
-        Touch_IPI_Packet ipi_pkt={.cmd = IPI_COMMAND_AS_ENABLE_GESTURE, .param.data = 0};
-        md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-    }
-#endif
-
 #if HOTKNOT_BLOCK_RW
     if(hotknot_paired_flag)
     {
@@ -3564,21 +3626,25 @@ static void tpd_resume(struct early_suspend *h)
     }
     
 #if GTP_CHARGER_SWITCH
-    gtp_charger_switch(1);  // force update
+    if (g_bat_init_flag) gtp_charger_switch(1);  // force update
 #endif
 
 #if GTP_SLIDE_WAKEUP
     doze_status = DOZE_DISABLED;
-#elif (GTP_SCP_GESTURE_WAKEUP)
-    doze_status = DOZE_DISABLED;
-#endif
-
+#else 
     mutex_lock(&i2c_access);
     tpd_halt = 0;
     //set again for IPO-H resume
-    mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, gtp_eint_trigger_type, tpd_eint_interrupt_handler, 1);    
-    mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);	
+   
+#ifdef CONFIG_OF_TOUCH
+		enable_irq(touch_irq);
+#else
+		mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, gtp_eint_trigger_type, tpd_eint_interrupt_handler, 1); 
+		mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif 
+
     mutex_unlock(&i2c_access);
+#endif
 
 #if GTP_ESD_PROTECT
     queue_delayed_work(gtp_esd_check_workqueue, &gtp_esd_check_work, clk_tick_cnt);
@@ -3587,7 +3653,7 @@ static void tpd_resume(struct early_suspend *h)
 #ifdef GTP_CHARGER_DETECT
     queue_delayed_work(gtp_charger_check_workqueue, &gtp_charger_check_work, clk_tick_cnt);
 #endif
-    printk("mtk-tpd: %s end\n", __FUNCTION__);
+	pr_warn("mtk-tpd: %s end\n", __func__);
 }
 
 static struct tpd_driver_t tpd_device_driver =
@@ -3601,26 +3667,31 @@ static struct tpd_driver_t tpd_device_driver =
 #else
     .tpd_have_button = 0,
 #endif
-    .attrs = {
-		.attr = gt9xx_attrs, 
-		.num  = ARRAY_SIZE(gt9xx_attrs),
-	},
 };
 
 static void tpd_off(void)
 {
+#if GTP_POWER_CTRL_SLEEP
+
 #ifdef TPD_POWER_SOURCE_CUSTOM
-	//hwPowerDown(TPD_POWER_SOURCE_CUSTOM, "TP");
+	hwPowerDown(TPD_POWER_SOURCE_CUSTOM, "TP");
 #else
 	hwPowerDown(MT65XX_POWER_LDO_VGP2, "TP");
 #endif
 #ifdef TPD_POWER_SOURCE_1800
 	hwPowerDown(TPD_POWER_SOURCE_1800, "TP");
 #endif
+#endif
     GTP_INFO("GTP enter sleep!");
    
     tpd_halt = 1;
-    mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+	
+#ifdef CONFIG_OF_TOUCH
+	disable_irq(touch_irq);
+#else
+	mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif
+
 }
 
 static void tpd_on(void)
@@ -3647,30 +3718,33 @@ static void tpd_on(void)
     {
         GTP_ERROR("GTP later resume failed.");
     }
+	
+#ifdef CONFIG_OF_TOUCH
+	enable_irq(touch_irq);
+#else
+	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
+#endif
 
-    mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
     tpd_halt = 0;
 }
 
 /* called when loaded into kernel */
 static int __init tpd_driver_init(void)
 {
+#if 0//def CONFIG_OF //FPGA
+        struct device_node *fpga_gpio_node;
     
-#ifdef CONFIG_OF //FPGA
-    struct device_node *fpga_gpio_node;
-
-    fpga_gpio_node = of_find_compatible_node(NULL, NULL, "mediatek,fpga_gpio");
-    if (!fpga_gpio_node) {
-        GTP_INFO("find fpga_gpio node failed\n");
-    }
-
-    fpga_gpio_base = of_iomap(fpga_gpio_node, 0);
-    if (!fpga_gpio_base) 
-        GTP_INFO("get fpga_gpio base failed\n");
+        fpga_gpio_node = of_find_compatible_node(NULL, NULL, "mediatek,fpga_gpio");
+        if (!fpga_gpio_node) {
+            GTP_INFO("find fpga_gpio node failed\n");
+        }
+    
+        fpga_gpio_base = of_iomap(fpga_gpio_node, 0);
+        if (!fpga_gpio_base) 
+            GTP_INFO("get fpga_gpio base failed\n");
 #endif
 
     GTP_INFO("MediaTek gt91xx touch panel driver init\n");
-    
 #if defined(TPD_I2C_NUMBER)	
     i2c_register_board_info(TPD_I2C_NUMBER, &i2c_tpd, 1);
 #else

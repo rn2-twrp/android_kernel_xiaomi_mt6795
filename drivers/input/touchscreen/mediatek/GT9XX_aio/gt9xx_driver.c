@@ -4073,7 +4073,7 @@ static void tpd_resume(struct early_suspend *h)
 
 #else
 
-    mutex_lock(&i2c_access);
+    //mutex_lock(&i2c_access);
     tpd_halt = 0;
     //set again for IPO-H resume
    

@@ -1,6 +1,5 @@
 /*
 * Copyright(C)2014 MediaTek Inc.
- * Copyright (C) 2018 XiaoMi, Inc.
 * Modification based on code covered by the below mentioned copyright
 * and/or permission notice(S).
 */
@@ -62,7 +61,6 @@
 #define CUST_EINT_ALS_POLARITY 		CUST_EINT_ALS_TYPE
 #define POWER_NONE_MACRO MT65XX_POWER_NONE
 
-#define MTK_AUTO_DETECT_ALSPS
 /******************************************************************************
  * configuration
 *******************************************************************************/

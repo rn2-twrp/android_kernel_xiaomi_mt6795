@@ -17,7 +17,7 @@
 #elif defined(BUILD_UBOOT)
 #define LCM_PRINT printf
 #else
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 #endif
 
 extern void upmu_set_rg_vgp2_ndis_en(kal_uint32 val);

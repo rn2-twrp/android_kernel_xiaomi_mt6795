@@ -120,7 +120,7 @@
 #define AFE_DCCLK_CFG0                                  ((UINT32)(PMIC_REG_BASE+0x2000+0x90))
 #define AFE_DCCLK_CFG1                                  ((UINT32)(PMIC_REG_BASE+0x2000+0x92))
 
-// TODO: 6328 analog part
+/* TODO: 6328 analog part */
 
 #define STRUP_CON0          ((UINT32)(PMIC_REG_BASE+0x0000))
 #define STRUP_CON2          ((UINT32)(PMIC_REG_BASE+0x0002))
@@ -272,17 +272,17 @@
 #define BUCK_ALL_CON4       ((UINT32)(PMIC_REG_BASE+0x0408))
 #define BUCK_ALL_CON5       ((UINT32)(PMIC_REG_BASE+0x040A))
 #define BUCK_ALL_CON6       ((UINT32)(PMIC_REG_BASE+0x040C))
-//#define BUCK_ALL_CON7       ((UINT32)(PMIC_REG_BASE+0x040E))
-//#define BUCK_ALL_CON8       ((UINT32)(PMIC_REG_BASE+0x0410))
-//#define BUCK_ALL_CON9       ((UINT32)(PMIC_REG_BASE+0x040E))
-//#define BUCK_ALL_CON10      ((UINT32)(PMIC_REG_BASE+0x0414))
-//#define BUCK_ALL_CON11      ((UINT32)(PMIC_REG_BASE+0x0416))
+/* #define BUCK_ALL_CON7       ((UINT32)(PMIC_REG_BASE+0x040E)) */
+/* #define BUCK_ALL_CON8       ((UINT32)(PMIC_REG_BASE+0x0410)) */
+/* #define BUCK_ALL_CON9       ((UINT32)(PMIC_REG_BASE+0x040E)) */
+/* #define BUCK_ALL_CON10      ((UINT32)(PMIC_REG_BASE+0x0414)) */
+/* #define BUCK_ALL_CON11      ((UINT32)(PMIC_REG_BASE+0x0416)) */
 #define BUCK_ALL_CON12      ((UINT32)(PMIC_REG_BASE+0x0410))
 #define BUCK_ALL_CON13      ((UINT32)(PMIC_REG_BASE+0x0412))
 #define BUCK_ALL_CON14      ((UINT32)(PMIC_REG_BASE+0x0414))
-//#define BUCK_ALL_CON15      ((UINT32)(PMIC_REG_BASE+0x041E))
+/* #define BUCK_ALL_CON15      ((UINT32)(PMIC_REG_BASE+0x041E)) */
 #define BUCK_ALL_CON16      ((UINT32)(PMIC_REG_BASE+0x0416))
-//#define BUCK_ALL_CON17      ((UINT32)(PMIC_REG_BASE+0x0422))
+/* #define BUCK_ALL_CON17      ((UINT32)(PMIC_REG_BASE+0x0422)) */
 #define BUCK_ALL_CON18      ((UINT32)(PMIC_REG_BASE+0x0418))
 #define BUCK_ALL_CON19      ((UINT32)(PMIC_REG_BASE+0x041A))
 #define BUCK_ALL_CON20      ((UINT32)(PMIC_REG_BASE+0x041C))
@@ -294,11 +294,11 @@
 #define BUCK_ALL_CON26      ((UINT32)(PMIC_REG_BASE+0x0428))
 #define BUCK_ALL_CON27      ((UINT32)(PMIC_REG_BASE+0x042A))
 #define BUCK_ALL_CON28      ((UINT32)(PMIC_REG_BASE+0x042C))
-//#define VDRAM_ANA_CON0      ((UINT32)(PMIC_REG_BASE+0x043A))
-//#define VDRAM_ANA_CON1      ((UINT32)(PMIC_REG_BASE+0x043C))
-//#define VDRAM_ANA_CON2      ((UINT32)(PMIC_REG_BASE+0x043E))
-//#define VDRAM_ANA_CON3      ((UINT32)(PMIC_REG_BASE+0x0440))
-//#define VDRAM_ANA_CON4      ((UINT32)(PMIC_REG_BASE+0x0442))
+/* #define VDRAM_ANA_CON0      ((UINT32)(PMIC_REG_BASE+0x043A)) */
+/* #define VDRAM_ANA_CON1      ((UINT32)(PMIC_REG_BASE+0x043C)) */
+/* #define VDRAM_ANA_CON2      ((UINT32)(PMIC_REG_BASE+0x043E)) */
+/* #define VDRAM_ANA_CON3      ((UINT32)(PMIC_REG_BASE+0x0440)) */
+/* #define VDRAM_ANA_CON4      ((UINT32)(PMIC_REG_BASE+0x0442)) */
 #define VCORE1_ANA_CON0     ((UINT32)(PMIC_REG_BASE+0x0440))
 #define VCORE1_ANA_CON1     ((UINT32)(PMIC_REG_BASE+0x0442))
 #define VCORE1_ANA_CON2     ((UINT32)(PMIC_REG_BASE+0x0444))
@@ -313,20 +313,20 @@
 #define SMPS_TOP_ANA_CON6   ((UINT32)(PMIC_REG_BASE+0x043A))
 #define SMPS_TOP_ANA_CON7   ((UINT32)(PMIC_REG_BASE+0x043C))
 #define SMPS_TOP_ANA_CON8   ((UINT32)(PMIC_REG_BASE+0x043E))
-//#define SMPS_TOP_ANA_CON9   ((UINT32)(PMIC_REG_BASE+0x0460))
-//#define VDVFS1_ANA_CON0     ((UINT32)(PMIC_REG_BASE+0x0462))
-//#define VDVFS1_ANA_CON1     ((UINT32)(PMIC_REG_BASE+0x0464))
-//#define VDVFS1_ANA_CON2     ((UINT32)(PMIC_REG_BASE+0x0466))
-//#define VDVFS1_ANA_CON3     ((UINT32)(PMIC_REG_BASE+0x0468))
-//#define VDVFS1_ANA_CON4     ((UINT32)(PMIC_REG_BASE+0x046A))
-//#define VDVFS1_ANA_CON5     ((UINT32)(PMIC_REG_BASE+0x046C))
-//#define VDVFS1_ANA_CON6     ((UINT32)(PMIC_REG_BASE+0x046E))
-//#define VDVFS1_ANA_CON7     ((UINT32)(PMIC_REG_BASE+0x0470))
-//#define VGPU_ANA_CON0       ((UINT32)(PMIC_REG_BASE+0x0472))
-//#define VGPU_ANA_CON1       ((UINT32)(PMIC_REG_BASE+0x0474))
-//#define VGPU_ANA_CON2       ((UINT32)(PMIC_REG_BASE+0x0476))
-//#define VGPU_ANA_CON3       ((UINT32)(PMIC_REG_BASE+0x0478))
-//#define VGPU_ANA_CON4       ((UINT32)(PMIC_REG_BASE+0x047A))
+/* #define SMPS_TOP_ANA_CON9   ((UINT32)(PMIC_REG_BASE+0x0460)) */
+/* #define VDVFS1_ANA_CON0     ((UINT32)(PMIC_REG_BASE+0x0462)) */
+/* #define VDVFS1_ANA_CON1     ((UINT32)(PMIC_REG_BASE+0x0464)) */
+/* #define VDVFS1_ANA_CON2     ((UINT32)(PMIC_REG_BASE+0x0466)) */
+/* #define VDVFS1_ANA_CON3     ((UINT32)(PMIC_REG_BASE+0x0468)) */
+/* #define VDVFS1_ANA_CON4     ((UINT32)(PMIC_REG_BASE+0x046A)) */
+/* #define VDVFS1_ANA_CON5     ((UINT32)(PMIC_REG_BASE+0x046C)) */
+/* #define VDVFS1_ANA_CON6     ((UINT32)(PMIC_REG_BASE+0x046E)) */
+/* #define VDVFS1_ANA_CON7     ((UINT32)(PMIC_REG_BASE+0x0470)) */
+/* #define VGPU_ANA_CON0       ((UINT32)(PMIC_REG_BASE+0x0472)) */
+/* #define VGPU_ANA_CON1       ((UINT32)(PMIC_REG_BASE+0x0474)) */
+/* #define VGPU_ANA_CON2       ((UINT32)(PMIC_REG_BASE+0x0476)) */
+/* #define VGPU_ANA_CON3       ((UINT32)(PMIC_REG_BASE+0x0478)) */
+/* #define VGPU_ANA_CON4       ((UINT32)(PMIC_REG_BASE+0x047A)) */
 #define VPA_ANA_CON0        ((UINT32)(PMIC_REG_BASE+0x0462))
 #define VPA_ANA_CON1        ((UINT32)(PMIC_REG_BASE+0x0464))
 #define VPA_ANA_CON2        ((UINT32)(PMIC_REG_BASE+0x0466))
@@ -406,7 +406,7 @@
 #define SPK_ANA_CON1        ((UINT32)(PMIC_REG_BASE+0x0AB4))
 #define SPK_ANA_CON3        ((UINT32)(PMIC_REG_BASE+0x0AB6))
 
-//#define FGADC_ANA_CON0      ((UINT32)(PMIC_REG_BASE+0x0CDC))
+/* #define FGADC_ANA_CON0      ((UINT32)(PMIC_REG_BASE+0x0CDC)) */
 #define AUDDEC_ANA_CON0     ((UINT32)(PMIC_REG_BASE+0x0CDC))
 #define AUDDEC_ANA_CON1     ((UINT32)(PMIC_REG_BASE+0x0CDE))
 #define AUDDEC_ANA_CON2     ((UINT32)(PMIC_REG_BASE+0x0CE0))
@@ -427,11 +427,11 @@
 #define AUDENC_ANA_CON8     ((UINT32)(PMIC_REG_BASE+0x0CFE))
 #define AUDENC_ANA_CON9     ((UINT32)(PMIC_REG_BASE+0x0D00))
 #define AUDENC_ANA_CON10    ((UINT32)(PMIC_REG_BASE+0x0D02))
-//#define AUDENC_ANA_CON12    ((UINT32)(PMIC_REG_BASE+0x0D06))
-//#define AUDENC_ANA_CON13    ((UINT32)(PMIC_REG_BASE+0x0D08))
+/* #define AUDENC_ANA_CON12    ((UINT32)(PMIC_REG_BASE+0x0D06)) */
+/* #define AUDENC_ANA_CON13    ((UINT32)(PMIC_REG_BASE+0x0D08)) */
 
-//#define AUDENC_ANA_CON14    ((UINT32)(PMIC_REG_BASE+0x0D0A))
-//#define AUDENC_ANA_CON15    ((UINT32)(PMIC_REG_BASE+0xFFFF)) // George temp checkreg
+/* #define AUDENC_ANA_CON14    ((UINT32)(PMIC_REG_BASE+0x0D0A)) */
+/* #define AUDENC_ANA_CON15    ((UINT32)(PMIC_REG_BASE+0xFFFF)) // George temp checkreg */
 #define AUDNCP_CLKDIV_CON0  ((UINT32)(PMIC_REG_BASE+0x0D04))
 #define AUDNCP_CLKDIV_CON1  ((UINT32)(PMIC_REG_BASE+0x0D06))
 #define AUDNCP_CLKDIV_CON2  ((UINT32)(PMIC_REG_BASE+0x0D08))
@@ -441,18 +441,16 @@
 #define GPIO_MODE3          ((UINT32)(0x60D0))
 
 #if 1
-//register number
+/* register number */
 
 #else
 #include <mach/upmu_hw.h>
 #endif
 
 void Ana_Set_Reg(uint32 offset, uint32 value, uint32 mask);
-uint32  Ana_Get_Reg(uint32 offset);
+uint32 Ana_Get_Reg(uint32 offset);
 
-// for debug usage
+/* for debug usage */
 void Ana_Log_Print(void);
 
 #endif
-
-

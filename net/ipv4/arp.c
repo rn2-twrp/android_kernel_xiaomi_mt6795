@@ -1,7 +1,6 @@
 /* linux/net/ipv4/arp.c
  *
  * Copyright (C) 1994 by Florian  La Roche
- * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This module implements the Address Resolution Protocol ARP (RFC 826),
  * which is used to convert IP addresses (or in the future maybe other
@@ -168,10 +167,10 @@ struct neigh_table arp_tbl = {
 	.id		= "arp_cache",
 	.parms		= {
 		.tbl			= &arp_tbl,
-		.base_reachable_time	= 30 * HZ,  //dengbing modify  300 -> 30
+		.base_reachable_time	= 30 * HZ,
 		.retrans_time		= 1 * HZ,
 		.gc_staletime		= 60 * HZ,
-		.reachable_time		= 30 * HZ,      //dengbing modify  300 -> 30
+		.reachable_time		= 30 * HZ,
 		.delay_probe_time	= 5 * HZ,
 		.queue_len_bytes	= 64*1024,
 		.ucast_probes		= 3,

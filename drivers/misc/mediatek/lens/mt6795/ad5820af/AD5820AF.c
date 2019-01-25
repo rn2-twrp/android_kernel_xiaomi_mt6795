@@ -19,7 +19,7 @@
 #endif
 
 
-// in K2, main=3, sub=main2=1
+
 #define LENS_I2C_BUSNUM 0
 
 #define AF_DRVNAME "AD5820AF"
@@ -32,7 +32,7 @@ static struct i2c_board_info __initdata kd_lens_dev={ I2C_BOARD_INFO(AF_DRVNAME,
 
 #define AF_DEBUG
 #ifdef AF_DEBUG
-#define LOG_INF(format, args...) xlog_printk(ANDROID_LOG_INFO,    AF_DRVNAME, "[%s] " format, __FUNCTION__, ##args)
+#define LOG_INF(format, args...) pr_debug(AF_DRVNAME " [%s] " format, __FUNCTION__, ##args)
 #else
 #define LOG_INF(format, args...)
 #endif
@@ -316,14 +316,18 @@ static int AF_Release(struct inode * a_pstInode, struct file * a_pstFile)
 {
     LOG_INF("Start \n");
 
-    if (g_s4AF_Opened)
+    if (g_s4AF_Opened == 2)
     {
-        LOG_INF("Free \n");
         g_sr = 5;
         s4AF_WriteReg(200);
         msleep(10);
         s4AF_WriteReg(100);
         msleep(10);
+    }
+
+    if (g_s4AF_Opened)
+    {
+        LOG_INF("Free \n");
 
         spin_lock(&g_AF_SpinLock);
         g_s4AF_Opened = 0;

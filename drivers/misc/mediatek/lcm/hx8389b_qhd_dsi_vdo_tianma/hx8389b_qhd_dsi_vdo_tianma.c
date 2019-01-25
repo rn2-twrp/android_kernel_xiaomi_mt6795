@@ -264,7 +264,7 @@ static void lcm_resume(void)
     #ifdef BUILD_LK
 	  printf("[LK]------hx8389b----%s------\n",__func__);
     #else
-	  printk("[KERNEL]------hx8389b----%s------\n",__func__);
+	  pr_debug("[KERNEL]------hx8389b----%s------\n",__func__);
     #endif	
 }
          
@@ -337,7 +337,7 @@ static unsigned int lcm_compare_id(void)
 #ifdef BUILD_LK
 	printf("%s, id = 0x%08x id1=%x \n", __func__, id,id1);
 #else
-	printk("%s, id = 0x%08x  id1=%x \n",__func__, id,id1);
+	pr_debug("%s, id = 0x%08x  id1=%x \n",__func__, id,id1);
 #endif
 
 	return (LCM_ID_HX8389B == id)?1:0;
@@ -364,9 +364,9 @@ static unsigned int lcm_esd_check(void)
 	dsi_set_cmdq(array, 1, 1);
 
 	read_reg_v2(0x0A, buffer, 2);
-	//printk(" esd buffer0 =%x,buffer1 =%x  \n",buffer[0],buffer[1]);
+	//pr_debug(" esd buffer0 =%x,buffer1 =%x  \n",buffer[0],buffer[1]);
 	//read_reg_v2(0x09,buffer,5);
-	//printk(" esd buffer0=%x, buffer1 =%x buffer2=%x,buffer3=%x,buffer4=%x \n",buffer[0],buffer[1],buffer[2],buffer[3],buffer[4]);
+	//pr_debug(" esd buffer0=%x, buffer1 =%x buffer2=%x,buffer3=%x,buffer4=%x \n",buffer[0],buffer[1],buffer[2],buffer[3],buffer[4]);
 #if 1
 	if(buffer[0]==0x1C)
 	{
@@ -387,7 +387,7 @@ static unsigned int lcm_esd_recover(void)
 	lcm_init();
 	
 	#ifndef BUILD_LK
-	printk("lcm_esd_recover  hx8389b_video_tianma \n");
+	pr_debug("lcm_esd_recover  hx8389b_video_tianma \n");
 	#endif
 	return TRUE;
 }

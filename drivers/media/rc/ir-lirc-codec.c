@@ -1,7 +1,6 @@
 /* ir-lirc-codec.c - rc-core to classic lirc interface bridge
  *
  * Copyright (C) 2010 by Jarod Wilson <jarod@redhat.com>
- * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,8 +20,7 @@
 #include <media/rc-core.h>
 #include "rc-core-priv.h"
 
-/* modify for CX861  from 256 to 1024 */
-#define LIRCBUF_SIZE 1024
+#define LIRCBUF_SIZE 256
 
 /**
  * ir_lirc_decode() - Send raw IR data to lirc_dev to be relayed to the
@@ -44,11 +42,17 @@ static int ir_lirc_decode(struct rc_dev *dev, struct ir_raw_event ev)
 		return -EINVAL;
 
 	/* Packet start */
-	if (ev.reset)
-		return 0;
+	if (ev.reset) {
+		/* Userspace expects a long space event before the start of
+		 * the signal to use as a sync.  This may be done with repeat
+		 * packets and normal samples.  But if a reset has been sent
+		 * then we assume that a long time has passed, so we send a
+		 * space with the maximum time value. */
+		sample = LIRC_SPACE(LIRC_VALUE_MASK);
+		IR_dprintk(2, "delivering reset sync space to lirc_dev\n");
 
 	/* Carrier reports */
-	if (ev.carrier_report) {
+	} else if (ev.carrier_report) {
 		sample = LIRC_FREQUENCY(ev.carrier);
 		IR_dprintk(2, "carrier report (freq: %d)\n", sample);
 

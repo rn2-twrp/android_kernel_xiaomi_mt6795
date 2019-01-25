@@ -347,7 +347,7 @@ static unsigned int lcm_esd_check(void)
 
     if(dummy_delay %2 == 0)
     {    
-        //printk("%s return 1\n",__FUNCTION__);
+        //pr_debug("%s return 1\n",__FUNCTION__);
 
 	    data_array[0] = 0x00013700;
 	    dsi_set_cmdq(data_array, 1, 1);
@@ -361,15 +361,15 @@ static unsigned int lcm_esd_check(void)
 	    dsi_set_cmdq(data_array, 1, 1);
 	    read_reg_v2(0x0E,&buffer_0e, 1);
 
-            //printk("lcm_esd_check lcm 0x0A is %x-----------------\n", buffer_0a);
-	    //printk("lcm_esd_check lcm 0x0E is %x-----------------\n", buffer_0e);
-	    //printk("lcm_esd_check lcm 0x05 is %x-----------------\n", buffer_05);
+            //pr_debug("lcm_esd_check lcm 0x0A is %x-----------------\n", buffer_0a);
+	    //pr_debug("lcm_esd_check lcm 0x0E is %x-----------------\n", buffer_0e);
+	    //pr_debug("lcm_esd_check lcm 0x05 is %x-----------------\n", buffer_05);
 	
 	    if ((buffer_0a==0x1C)&&((buffer_0e&0x01)==0x00)&&(buffer_05==0x00)){
-		    //printk("diablox_lcd lcm_esd_check done\n");
+		    //pr_debug("diablox_lcd lcm_esd_check done\n");
 		    retval = 0;
 	    }else{
-		    //printk("diablox_lcd lcm_esd_check return true\n");
+		    //pr_debug("diablox_lcd lcm_esd_check return true\n");
 		    retval = 1;
 	    }
     }
@@ -380,7 +380,7 @@ static unsigned int lcm_esd_check(void)
 
 static unsigned int lcm_esd_recover(void)
 {
-    //printk("%s \n",__FUNCTION__);
+    //pr_debug("%s \n",__FUNCTION__);
     
     lcm_resume();
     lcm_init();
@@ -399,7 +399,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s\n", __func__);
     #else
-		printk("%s\n", __func__);
+		pr_debug("%s\n", __func__);
     #endif
     
 	
@@ -445,8 +445,8 @@ static unsigned int lcm_compare_id(void)
     printf("%s, LK lcm_compare_id debug: R63315_ScribePro lcd_id = 0x%08x\n", __func__, lcd_id);
     printf("%s, LK lcm_compare_id debug: R63315_ScribePro hd_id = 0x%08x\n", __func__, hd_id);
 #else
-    printk("%s, kernel lcm_compare_id horse debug: R63315_ScribePro lcd_id = 0x%08x\n", __func__, lcd_id);
-    printk("%s, kernel lcm_compare_id horse debug: R63315_ScribePro hd_id = 0x%08x\n", __func__, hd_id);
+    pr_debug("%s, kernel lcm_compare_id horse debug: R63315_ScribePro lcd_id = 0x%08x\n", __func__, lcd_id);
+    pr_debug("%s, kernel lcm_compare_id horse debug: R63315_ScribePro hd_id = 0x%08x\n", __func__, hd_id);
 #endif
     
     if (!hd_id) //1=>nt hw lcd;0=>truly hw lcd

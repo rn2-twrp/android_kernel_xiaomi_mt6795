@@ -42,7 +42,7 @@
 //#define LOG_2 LOG_INF("preview 1280*960@30fps,864Mbps/lane; video 1280*960@30fps,864Mbps/lane; capture 5M@30fps,864Mbps/lane\n")
 /****************************   Modify end    *******************************************/
 
-#define LOG_INF(format, args...)    xlog_printk(ANDROID_LOG_INFO   , PFX, "[%s] " format, __FUNCTION__, ##args)
+#define LOG_INF(format, args...)    pr_debug(PFX "[%s] " format, __FUNCTION__, ##args)
 
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
@@ -87,7 +87,7 @@ static imgsensor_info_struct imgsensor_info = {
         /*     following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario    */
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         /*     following for GetDefaultFramerateByScenario()    */
-        .max_framerate = 300,
+        .max_framerate = 300,    
         },
     .normal_video = {
         .pclk = 120000000,                //record different mode's pclk
@@ -100,7 +100,7 @@ static imgsensor_info_struct imgsensor_info = {
         /*     following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario    */
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         /*     following for GetDefaultFramerateByScenario()    */
-        .max_framerate = 300,
+        .max_framerate = 300,   
         },
     .hs_video = {
         .pclk = 120000000,                //record different mode's pclk
@@ -113,7 +113,7 @@ static imgsensor_info_struct imgsensor_info = {
         /*     following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario    */
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         /*     following for GetDefaultFramerateByScenario()    */
-        .max_framerate = 300,
+        .max_framerate = 300,    
         },
     .slim_video = {
         .pclk = 120000000,                //record different mode's pclk
@@ -126,9 +126,9 @@ static imgsensor_info_struct imgsensor_info = {
         /*     following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario    */
         .mipi_data_lp2hs_settle_dc = 85,//unit , ns
         /*     following for GetDefaultFramerateByScenario()    */
-        .max_framerate = 300,
+        .max_framerate = 300,  
         },
-
+        
     .margin = 4,            //sensor framelength & shutter margin
     .min_shutter = 1,        //min shutter
     .max_frame_length = 0x7fff,//max framelength by sensor register's limitation
@@ -204,7 +204,7 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 static void set_dummy()
 {
     LOG_INF("dummyline = %d, dummypixels = %d \n", imgsensor.dummy_line, imgsensor.dummy_pixel);
-
+	
     /* you can set dummy by imgsensor.dummy_line and imgsensor.dummy_pixel, or you can set dummy by imgsensor.frame_length and imgsensor.line_length */
     write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
     write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
@@ -248,9 +248,9 @@ static void set_max_framerate(UINT16 framerate,kal_bool min_framelength_en)
 *
 * DESCRIPTION
 *    This function set e-shutter of sensor to change exposure time.
-*    The registers 0x3500 ,0x3501 and 0x3502 control exposure of OV4688.
+*    The registers 0x3500 ,0x3501 and 0x3502 control exposure of OV4688. 
 *    The exposure value is in number of Tline, where Tline is the time of sensor one line.
-*
+*     
 *    Exposure = [reg 0x3500]<<12 + [reg 0x3501]<<4 + [reg 0x3502]>>4;
 *    The maximum exposure value is limited by VTS defined by register 0x380e and 0x380f.
       Maximum Exposure <= VTS -4
@@ -283,30 +283,30 @@ static void set_shutter(kal_uint16 shutter)
 	        imgsensor.frame_length = shutter + imgsensor_info.margin;
 	    else
 	        imgsensor.frame_length = imgsensor.min_frame_length;
-
+		
 	    if (imgsensor.frame_length > imgsensor_info.max_frame_length)
 	        imgsensor.frame_length = imgsensor_info.max_frame_length;
     spin_unlock(&imgsensor_drv_lock);
-
+	
     shutter = (shutter < imgsensor_info.min_shutter) ? imgsensor_info.min_shutter : shutter;
     shutter = (shutter > (imgsensor_info.max_frame_length - imgsensor_info.margin)) ? (imgsensor_info.max_frame_length - imgsensor_info.margin) : shutter;
 
-	if (imgsensor.autoflicker_en)
+	if (imgsensor.autoflicker_en) 
 	{
 		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 / imgsensor.frame_length;
-
+		
 		if(realtime_fps >= 297 && realtime_fps <= 305)
 			set_max_framerate(296,0);
 		else if(realtime_fps >= 147 && realtime_fps <= 150)
 			set_max_framerate(146,0);
-		else
+		else 
 		{
 		// Extend frame length
 			write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
 			write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
 		}
-	}
-	else
+	} 
+	else 
 	{
 		// Extend frame length
 		write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
@@ -318,11 +318,11 @@ static void set_shutter(kal_uint16 shutter)
 		temp = shutter & 0x000f;
 		temp = temp<<4;
 		write_cmos_sensor(0x3502, temp);
-
+		
 		temp = shutter & 0x0fff;
 		temp = temp>>4;
 		write_cmos_sensor(0x3501, temp);
-
+		
 		temp = shutter>>12;
 		write_cmos_sensor(0x3500, temp);
 
@@ -330,7 +330,7 @@ static void set_shutter(kal_uint16 shutter)
 #if 0
 		write_cmos_sensor(0x3500, (shutter>>12) & 0x0F);
 		write_cmos_sensor(0x3501, (shutter>>4) & 0xFF);
-		write_cmos_sensor(0x3502, (shutter<<4) & 0xF0);
+		write_cmos_sensor(0x3502, (shutter<<4) & 0xF0);	
 #endif
     LOG_INF("Exit!JEFF shutter =%d, framelength =%d\n", shutter,imgsensor.frame_length);
 
@@ -367,35 +367,35 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	{
 		LOG_INF("Error gain setting");
 		if (gain < BASEGAIN)
-			gain = BASEGAIN;
+			gain = BASEGAIN;		 
 	}
 
 	reg_gain = gain << 1;
 	LOG_INF("Jeff: enter set_gain,to reg gain (%d) \n ", reg_gain );
 
-
+	 
 	reg_gain =  reg_gain & 0x7FF;
-	if(reg_gain < 256)
+	if(reg_gain < 256) 
 	{
 		reg_gain_h = 0;
 		reg_gain_l = reg_gain;
 	}
-	else if(reg_gain < 512)
+	else if(reg_gain < 512) 
 	{
 		reg_gain_h = 1;
 		reg_gain_l = (reg_gain >> 1) - 8;
 	}
-	else if(reg_gain < 1024)
+	else if(reg_gain < 1024) 
 	{
 		reg_gain_h = 3;
 		reg_gain_l = (reg_gain >> 2) - 12;
 	}
-	else
+	else 
 	{
 		reg_gain_h = 7;
 		reg_gain_l = (reg_gain >> 3) - 8;
 	}
-
+	
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.gain = reg_gain;
 	spin_unlock(&imgsensor_drv_lock);
@@ -448,7 +448,7 @@ static void set_mirror_flip(kal_uint8 image_mirror)
     LOG_INF("image_mirror = %d\n", image_mirror);
 
 
-	switch (image_mirror)
+	switch (image_mirror) 
 	{
 		case IMAGE_NORMAL:
 			write_cmos_sensor(0x3820,((read_cmos_sensor(0x3820) & 0xF9) | 0x00));
@@ -498,9 +498,9 @@ static void sensor_init(void)
 	LOG_INF("Enter ov4688 sensor_init.\n");
 
 	write_cmos_sensor(0x0103, 0x01);     // software reset
-
+	
 	 /* delay 30ms */
-	mDELAY(30);
+	mDELAY(30); 
 	write_cmos_sensor(0x3638, 0x00);     // ADC & analog
 	write_cmos_sensor(0x0300, 0x00);     // PLL1 prediv
 	write_cmos_sensor(0x0302, 0x1c);     // PLL1 divm
@@ -784,7 +784,7 @@ static void preview_setting(void)
 	write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
 
 	   /* delay 30ms */
-	   mDELAY(30);
+	   mDELAY(30); 
 
 	/*@@Full Resolution 2688x1520 30fps_672Mbps2lane.txt*/
 	write_cmos_sensor(0x0302, 0x1c);      // PLL1 divm
@@ -834,25 +834,25 @@ static void capture_setting(kal_uint16 currefps)
 {
 	LOG_INF("E! currefps:%d\n",currefps);
 #if 0
-	if (currefps == 240)
+	if (currefps == 240) 
 	{   //24fps for PIP
 	    //@@full_132PCLK_24.75
 	write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
 
 
-	}
-	else
+	} 
+	else 
 	{   //30fps            //30fps for Normal capture & ZSD
 		write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
 		//mDELAY(30);
-
-
+        
+	
 	if (imgsensor.ihdr_en)
 	{
 
-	}
-	else
-	{
+	} 
+	else 
+	{	
 
 	}
 
@@ -862,7 +862,7 @@ static void capture_setting(kal_uint16 currefps)
 #endif
 	write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
 	mDELAY(40);
-
+	
          /*@@Full Resolution 2688x1520 30fps_672Mbps2lane.txt*/
 	write_cmos_sensor(0x0302, 0x1c);      // PLL1 divm
 	write_cmos_sensor(0x3501, 0x60);      // long exposure H
@@ -953,7 +953,7 @@ static void normal_video_setting(kal_uint16 currefps)
 	write_cmos_sensor(0x4502, 0x40);      // ADC sync control
 	write_cmos_sensor(0x4601, 0x04);      // V fifo read start
 	write_cmos_sensor(0x4837, 0x18);      // MIPI global timing
-
+   
 	write_cmos_sensor(0x0100,0x01);   // Sensor wake up from standby, MIPI stream on
 	mDELAY(40);
 }
@@ -962,7 +962,7 @@ static void hs_video_setting()
     LOG_INF("E\n");
 
 	write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
-
+	
 	write_cmos_sensor(0x0100,0x01);  //Sensor wake up from standby, MIPI stream on
 
 }
@@ -972,14 +972,14 @@ static void slim_video_setting()
     LOG_INF("E\n");
 	write_cmos_sensor(0x0100,0x00);    // Sensor go to standby. MIPI stream off, both clock and data lane in LP11 mode
 
-
+	    
 	write_cmos_sensor(0x0100,0x01);  //Sensor wake up from standby, MIPI stream on
 }
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
 	LOG_INF("enable: %d\n", enable);
-
+	
 	/********************************************************
 
 	*0x5040[7]: 1 enable,  0 disable
@@ -988,11 +988,11 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	********************************************************/
 
 
-	if (enable)
-	{
+	if (enable) 
+	{      
 		write_cmos_sensor(0x5040, 0x80);
-	}
-	else
+	} 
+	else 
 	{
 		write_cmos_sensor(0x5040, 0x00);
 	}
@@ -1095,7 +1095,7 @@ static kal_uint32 open(void)
 
     /* initail sequence write in  */
     sensor_init();
-#if 0
+#if 0	
 //#if defined(OV4688_USE_WB_OTP)
 	ov4688_otp_cali(imgsensor_info.sensor_id);
 #endif
@@ -1203,15 +1203,15 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CAPTURE;
-	if (imgsensor.current_fps == imgsensor_info.cap1.max_framerate)
+	if (imgsensor.current_fps == imgsensor_info.cap1.max_framerate) 
 	{//PIP capture: 24fps for less than 13M, 20fps for 16M,15fps for 20M
 		imgsensor.pclk = imgsensor_info.cap1.pclk;
 		imgsensor.line_length = imgsensor_info.cap1.linelength;
 		imgsensor.frame_length = imgsensor_info.cap1.framelength;
 		imgsensor.min_frame_length = imgsensor_info.cap1.framelength;
 		imgsensor.autoflicker_en = KAL_FALSE;
-	}
-	else
+	} 
+	else 
 	{
 		if (imgsensor.current_fps != imgsensor_info.cap.max_framerate)
 		LOG_INF("Warning: current_fps %d fps is not support, so use cap's setting: %d fps!\n",imgsensor.current_fps,imgsensor_info.cap.max_framerate/10);
@@ -1240,7 +1240,7 @@ static kal_uint32 normal_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	    //imgsensor.current_fps = 300;
 	    imgsensor.autoflicker_en = KAL_FALSE;
     spin_unlock(&imgsensor_drv_lock);
-    normal_video_setting(imgsensor.current_fps);
+    normal_video_setting(imgsensor.current_fps);	
 	//set_mirror_flip(sensor_config_data->SensorImageMirror);
     return ERROR_NONE;
 }    /*    normal_video   */
@@ -1261,7 +1261,7 @@ static kal_uint32 hs_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	    imgsensor.dummy_pixel = 0;
 	    imgsensor.autoflicker_en = KAL_FALSE;
     spin_unlock(&imgsensor_drv_lock);
-    hs_video_setting();
+    hs_video_setting();	
 	//set_mirror_flip(sensor_config_data->SensorImageMirror);
     return ERROR_NONE;
 }    /*    hs_video   */
@@ -1447,7 +1447,7 @@ static kal_uint32 control(MSDK_SCENARIO_ID_ENUM scenario_id, MSDK_SENSOR_EXPOSUR
 
 
 static kal_uint32 set_video_mode(UINT16 framerate)
-{
+{//
     LOG_INF("framerate = %d\n ", framerate);
     // SetVideoMode Function should fix framerate
     if (framerate == 0)

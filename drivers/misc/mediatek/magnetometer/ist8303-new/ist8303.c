@@ -41,27 +41,33 @@
 #include <mach/mt_typedefs.h>
 #include <mach/mt_gpio.h>
 #include <mach/mt_pm_ldo.h>
+/*--------------------------------------------------------*/
 
-/*----------------------------------------------------------------------------*/
 #define IST8303_M_NEW_ARCH   //susport kk new msensor arch
 
 #ifdef IST8303_M_NEW_ARCH
 #include "mag.h"
+#include <linux/batch.h>
+
 #endif
 
 /*-------------------------MT6516&MT6573 define-------------------------------*/
 
 
 #define POWER_NONE_MACRO MT65XX_POWER_NONE
+
+/*--------------------------------------------------*/
+
+
 //#define SOFT_GYRO
 //#define REPLACE_ANDROID_VIRTUAL_SENSOR
+
 
 /*----------------------------------------------------------------------------*/
 #define I2C_DRIVERID_IST8303 304
 #define DEBUG 1
 #define IST8303_DEV_NAME          "ist8303"
-#define DRIVER_VERSION            "1.0.0.0"
-#define ODR_DELAY_TIME_MS         20  // ODR delayms for each loop
+#define DRIVER_VERSION            "1.0.0.1"
 /*----------------------------------------------------------------------------*/
 #define IST8303_AXIS_X            0
 #define IST8303_AXIS_Y            1
@@ -82,14 +88,16 @@
 #define MSE_VER(fmt, args...)   ((void)0)
 static DECLARE_WAIT_QUEUE_HEAD(data_ready_wq);
 static DECLARE_WAIT_QUEUE_HEAD(open_wq);
-static DECLARE_RWSEM(ist830x_rawdata_lock);
 
 static atomic_t open_flag = ATOMIC_INIT(0);
+static atomic_t m_flag = ATOMIC_INIT(0);
+static atomic_t o_flag = ATOMIC_INIT(0);
 /*----------------------------------------------------------------------------*/
 static struct i2c_client *ist8303_i2c_client = NULL;
-unsigned char ist830x_msensor_raw_data[7];
+unsigned char ist830x_msensor_raw_data[6];
 struct delayed_work ist_get_raw_data_work;
-atomic_t ist830x_data_ready;
+struct mutex sensor_data_mutex;
+atomic_t    ist830x_data_ready;
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
 static const struct i2c_device_id ist8303_i2c_id[] = {{IST8303_DEV_NAME,0},{}};
@@ -106,45 +114,44 @@ static int ist8303_i2c_remove(struct i2c_client *client);
 static int ist8303_suspend(struct i2c_client *client, pm_message_t msg) ;
 static int ist8303_resume(struct i2c_client *client);
 
-/*----------------------------------------------------------------------------*/
+
+/*----------------------------------------------------*/
 #ifdef IST8303_M_NEW_ARCH
 static int ist8303_local_init(void);
 static int ist8303_remove(void);
-#else
+#endif
+/*-----------------------------------------------------*/
+#ifndef IST8303_M_NEW_ARCH
+
 static struct platform_driver ist_sensor_driver;
 #endif
-
 /*----------------------------------------------------------------------------*/
 typedef enum {
     IST_TRC_DEBUG  = 0x01,
-    IST_TRC_M_DATA  = 0x02,
-    IST_TRC_O_DATA  = 0x04,
-    IST_TRC_GYRO_DATA  = 0x08,
-    IST_TRC_LINEAR_ACC_DATA  = 0x10,
-    IST_TRC_GRAVITY_DATA  = 0x20,
-    IST_TRC_ROTATION_VEC_DATA  = 0x40,
+	IST_TRC_M_DATA  = 0x02,
+	IST_TRC_O_DATA  = 0x04,
+	IST_TRC_GYRO_DATA  = 0x08,
+	IST_TRC_LINEAR_ACC_DATA  = 0x10,
+	IST_TRC_GRAVITY_DATA  = 0x20,
+	IST_TRC_ROTATION_VEC_DATA  = 0x40,
 } IST_TRC;
 /*----------------------------------------------------------------------------*/
 struct _ist302_data {
-    struct rw_semaphore lock;
+    rwlock_t lock;
     int mode;
     int rate;
     volatile int updated;
 } ist830x_data;
 /*----------------------------------------------------------------------------*/
 struct _ist8303mid_data {
-    struct rw_semaphore datalock;
-    struct rw_semaphore ctrllock;    
+    rwlock_t datalock;
+    rwlock_t ctrllock;    
     int controldata[10];
     unsigned int debug;
     int nmx;
     int nmy;
     int nmz;
     int mag_status;
-    int nmx_uncali;
-    int nmy_uncali;
-    int nmz_uncali;
-    int mag_status_uncali;
     int yaw;
     int roll;
     int pitch;
@@ -195,15 +202,19 @@ static struct i2c_driver ist8303_i2c_driver = {
     .id_table = ist8303_i2c_id,
     //.address_list = ist8303_forces,//address_data->address_list
 };
-/*----------------------------------------------------------------------------*/
+/*-----------------------------------------------*/
 #ifdef IST8303_M_NEW_ARCH
+
 static int ist8303_init_flag =-1; // 0<==>OK -1 <==> fail
+
 static struct mag_init_info ist8303_init_info = {
-        .name = "ist8303",
-        .init = ist8303_local_init,
-        .uninit = ist8303_remove,   
+		.name = "ist8303",
+		.init = ist8303_local_init,
+		.uninit = ist8303_remove,	
 };
 #endif
+/*-------------------------------------------------*/
+
 /*----------------------------------------------------------------------------*/
 static atomic_t dev_open_count;
 /*----------------------------------------------------------------------------*/
@@ -291,37 +302,30 @@ static int ist8303_GetOpenStatus(void)
     return atomic_read(&open_flag);
 }
 
-static int ist8303_GetCloseStatus(void)
-{
-    wait_event_interruptible(open_wq, (atomic_read(&open_flag) == 0));
-    return atomic_read(&open_flag);
-}
 
-#if 0
 static int ist8303_gpio_config(void)
 {
     //because we donot use EINT ,to support low power
     // config to GPIO input mode + PD    
     //set   GPIO_MSE_EINT_PIN
-
+#if 0
     mt_set_gpio_mode(GPIO_MSE_EINT_PIN, GPIO_MSE_EINT_PIN_M_GPIO);
     mt_set_gpio_dir(GPIO_MSE_EINT_PIN, GPIO_DIR_IN);
     mt_set_gpio_pull_enable(GPIO_MSE_EINT_PIN, GPIO_PULL_ENABLE);
     mt_set_gpio_pull_select(GPIO_MSE_EINT_PIN, GPIO_PULL_DOWN);
-
+#endif
     return 0;
 }
-#endif
 /*----------------------------------------------------------------------------*/
 static int IST8303_CheckDataReady(struct i2c_client *client)  //  this is used for normal mode, not for force mode
 {
     int cResult = 0;
     char buffer[1];
     int  ret;
-
+    //MSE_FUN(f); //debug
     buffer[0] = IST8303_REG_STAT1;
 
-    ret = ist830x_i2c_rxdata(client, buffer, 1); // ret can be : -5 or 0
+    ret = ist830x_i2c_rxdata(client, buffer, 1);
 
     if (ret < 0) {
         printk(KERN_ERR "IST8303 IST8303_CheckDataReady : I2C failed \n");
@@ -335,55 +339,88 @@ static int IST8303_CheckDataReady(struct i2c_client *client)  //  this is used f
 /*----------------------------------------------------------------------------*/
 static int IST8303_GetData(struct i2c_client *client, char *rbuf)
 {
-    int ret;
-    rbuf[0] = IST8303_REG_STAT1;
+    int i;
 
-    ret = ist830x_i2c_rxdata(client, rbuf, 7);
+    char buffer[6];
+    int ret;
+    memset(buffer, 0, 6);
+    buffer[0] = IST8303_REG_DATAX_L;
+    //MSE_FUN(f); //debug
+    ret = ist830x_i2c_rxdata(client, buffer, 6);
 
     if (ret < 0) {
         printk(KERN_ERR "IST8303_GetXYZ : I2C failed \n");
         return ret;
+    }else {
+        for(i=0; i<6; i++)
+            rbuf[i] = buffer[i];
     }
+    
     return ret;
 }
 /*----------------------------------------------------------------------------*/
-typedef struct _ODR_ITEM {
-    int hz;
-    int delayms;
-    int regval;
-} ODR_ITEM;
-/*
- 2: Continuous measurement mode with ODR 8Hz
- 3: Continuous measurement mode with ODR 10Hz
- 5: Continuous measurement mode with ODR 20Hz
- 6: Continuous measurement mode with ODR 100Hz
- 7: Continuous measurement mode with ODR 50Hz
-10: Continuous measurement mode with ODR 1Hz
-11: Continuous measurement mode with ODR 200Hz
-*/
-static ODR_ITEM ODR_TABLE[] = 
+static void ist830x_prepare_raw_data(struct work_struct *work)
 {
-    {  8,  125,  2},
-    { 10,  100,  3},
-    { 20,   50,  5},
-    {100,   10,  6},
-    { 50,   20,  7},
-    {  1, 1000, 10},
-    {200,    5, 11},
-};
-static int _GetODR(int nDelayMs)
-{
-    int i = 0;
-    for (i=0; i<sizeof(ODR_TABLE)/sizeof(ODR_ITEM); i++)
+    char sData[6];  //  sensor raw data
+    int err;    
+    int status;    
+    unsigned long start;    
+	//MSE_FUN(f); //debug
+
+    memset(sData, 0, sizeof(sData));
+
+    /* Check DRDY bit */
+    start = jiffies;
+    do {
+        status = IST8303_CheckDataReady(ist8303_i2c_client);
+        if (status == 1)
+            break;
+//    } while (jiffies_to_msecs(jiffies - start) <= 25);
+    } while (jiffies_to_msecs(jiffies - start) <= 50);
+#if 0 //vender changed        
+    if (!status && jiffies_to_msecs(jiffies - start) > 25)
     {
-        if (ODR_TABLE[i].delayms == nDelayMs)
-            return ODR_TABLE[i].regval;
+        printk("DRDY loop time out\n");
+        goto data_not_ready;}
+#endif
+    if (status < 0) // -5 case
+    {
+        printk("ist830x_i2c_rxdata() fail \n");
+        goto data_not_ready;
+    }
+    
+    if (status == 0) // DRDY = 0 case
+    {
+        printk("DRDY is 0 \n");
+        goto data_not_ready;
+    }
+ 
+
+    err = IST8303_GetData(ist8303_i2c_client, sData);   
+    if (err < 0) {
+        dev_err(&ist8303_i2c_client->dev, "%s failed.", __func__);
+        goto data_not_ready;
     }
 
-    // ODR 20HZ or default
-    return 5;
-}
+    mutex_lock(&sensor_data_mutex);
+    memcpy(ist830x_msensor_raw_data, sData, 6);
+    mutex_unlock(&sensor_data_mutex);
 
+    atomic_set(&ist830x_data_ready, 1);
+    wake_up(&data_ready_wq);
+
+#if 0 //for debug
+	int i = 0;
+	for(i=0; i<sizeof(ist830x_msensor_raw_data)/sizeof(ist830x_msensor_raw_data[0]); i++)
+	{
+		MSE_LOG("ist830x_msensor_raw_data[%d] = 0x%x\n",i,ist830x_msensor_raw_data[i]);//debug
+	}
+#endif
+
+data_not_ready:
+    schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
+}
+/*----------------------------------------------------------------------------*/
 static int IST8303_Chipset_Init(int mode)
 {
     char wbuffer[2];
@@ -392,22 +429,8 @@ static int IST8303_Chipset_Init(int mode)
     wbuffer[0] = IST8303_REG_CNTRL1;
     wbuffer[1] = 0x00;  //  stand-by mode  
     ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-    if (ret<0) {
+    if(ret<0) {
         printk(KERN_ERR "set register IST8303_REG_CNTRL1 failed.\n");
-        return ret;
-    }
-    
-    wbuffer[0] = IST8303_REG_CNTRL2;
-    ret = ist830x_i2c_rxdata(ist8303_i2c_client, wbuffer, 1);
-    if (ret<0) {
-        printk(KERN_ERR "get register IST8303_REG_CNTRL2 failed.\n");
-        return ret;
-    }
-    wbuffer[1] = wbuffer[0] & 0xF3; // clear bit2 & bit3 to disable DRDY external pin
-    wbuffer[0] = IST8303_REG_CNTRL2;
-    ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-    if (ret<0) {
-        printk(KERN_ERR "set register IST8303_REG_CNTRL2 failed.\n");
         return ret;
     }
 
@@ -422,124 +445,44 @@ static int IST8303_Chipset_Init(int mode)
     wbuffer[0] = IST8303_REG_CTR;
     wbuffer[1] = 0x00;  //  use temperature compensation mechanism
     ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-    if (ret<0) {
+    if(ret<0) {
         printk(KERN_ERR "set register IST8303_REG_CTR failed.\n");
         return ret;
     }
-    
+
     wbuffer[0] = 0x62;
     wbuffer[1] = 0x00;  //  only for 8303b pulse width
     ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-    if (ret<0) {
+    if(ret<0) {
         printk(KERN_ERR "set register IST8303_REG_BTR failed.\n");
         return ret;
     }
-    
-    return 0;
-}
 
-static int IST8303_Chipset_Enable(int mode, int enable)
-{
-    char wbuffer[2];
-    int ret;
-
-    if (enable == 0)
-    {
-        wbuffer[0] = IST8303_REG_CNTRL1;
-        wbuffer[1] = 0x01;  //  Single measurement mode
-        ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-        if (ret<0) {
-            printk(KERN_ERR "set register IST8303_REG_CNTRL1 failed.\n");
-            return ret;
-        }
-    }
-    else
-    {
-        if (mode == IST8303_FORCE_MODE)
-        {
-            wbuffer[0] = IST8303_REG_CNTRL1;
-            wbuffer[1] = 0x01;  //  Single measurement mode
-            ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-            if (ret<0) {
-                printk(KERN_ERR "set register IST8303_REG_CNTRL1 failed.\n");
-                return ret;
-            }
-        }
-        else // normal mode
-        {
-            wbuffer[0] = IST8303_REG_CNTRL1;
-            wbuffer[1] = _GetODR(ODR_DELAY_TIME_MS);
-            printk(KERN_INFO "DelayMs=%d, ODR=%d\n", ODR_DELAY_TIME_MS, (int)wbuffer[1]); 
-            ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-            if (ret<0) {
-                printk(KERN_ERR "set register IST8303_REG_CNTRL1 failed.\n");
-                return ret;
-            }
-        }
+    wbuffer[0] = IST8303_REG_CNTRL1;
+    wbuffer[1] = 0x05;  //  continuous ODR 20Hz  
+    ret = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
+    if(ret<0) {
+        printk(KERN_ERR "set register IST8303_REG_CNTRL1 failed.\n");
+        return ret;
     }
 
     return 0;
 }
-
 /*----------------------------------------------------------------------------*/
-static void ist830x_prepare_raw_data(struct work_struct *work)
+static int IST8303_SetMode(int newmode)
 {
-    char sData[7];  //  sensor raw data
-    int err;    
-    int status;    
-    unsigned long start;
+    int mode = 0;
+
+    read_lock(&ist830x_data.lock);
+    mode = ist830x_data.mode;
+    read_unlock(&ist830x_data.lock);        
+
+    if(mode == newmode)
+    {
+        return 0;    
+    }
     
-    schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-
-    /* Check DRDY bit */
-    start = jiffies;
-    do {
-        status = IST8303_CheckDataReady(ist8303_i2c_client); // status can be : -5 or 0 or 1
-        if (status == 1) // DRDY is 1, ok
-            break;
-    } while (jiffies_to_msecs(jiffies - start) <= ODR_DELAY_TIME_MS);
-            
-    if (status < 0) // -5 case
-    {
-        printk("ist830x_i2c_rxdata() fail \n");
-        return;
-    }
-
-    if (status == 0) // DRDY = 0 case
-    {
-        printk("DRDY is 0 \n");
-        err = IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 1); // -5 : fail 0: succeed
-        if(err)
-            printk("IST8303_Chipset_Enable fail \n");
-
-        return;
-    }
-
-    err = IST8303_GetData(ist8303_i2c_client, sData); // err can be : -5 or 0   
-    if (err < 0) {
-        dev_err(&ist8303_i2c_client->dev, "%s failed.", __func__);
-        return;
-    }
-
-    down_write(&ist830x_rawdata_lock);
-    memcpy(ist830x_msensor_raw_data, sData, 7);
-    up_write(&ist830x_rawdata_lock);
-
-    atomic_set(&ist830x_data_ready, 1);
-    wake_up(&data_ready_wq);
-}
-/*----------------------------------------------------------------------------*/
-static void IST8303_SetMode(int newmode)
-{
-    down_write(&ist830x_data.lock);
-
-    if(ist830x_data.mode != newmode)
-    {
-        ist830x_data.mode = newmode;
-        IST8303_Chipset_Init(newmode);
-    }
-
-    up_write(&ist830x_data.lock);
+    return IST8303_Chipset_Init(newmode);
 }
 /*----------------------------------------------------------------------------*/
 static int IST8303_ReadChipInfo(char *buf, int bufsize)
@@ -561,62 +504,54 @@ static int IST8303_ReadChipInfo(char *buf, int bufsize)
 static int IST8303_ReadSensorData(char *buf, int bufsize)
 {
     struct ist8303_i2c_data *data = i2c_get_clientdata(ist8303_i2c_client);
-  //  char cmd;
+    char cmd;
     int mode = 0, err = 0;    
-    unsigned char databuf[7];  //  for sensor raw data
+    unsigned char databuf[6];  //  for sensor raw data
+    short B[IST8303_AXES_NUM];
     short output[IST8303_AXES_NUM];
     short temp = 0;
-    int mag[IST8303_AXES_NUM];
+    int mag[IST8303_AXES_NUM], i;
 
-    if ((!buf)||(bufsize<=80))
+    if((!buf)||(bufsize<=80))
     {
         return -1;
     }   
-    if (NULL == ist8303_i2c_client)
+    if(NULL == ist8303_i2c_client)
     {
         *buf = 0;
         return -2;
     }
 
-    down_read(&ist830x_data.lock);    
+    read_lock(&ist830x_data.lock);    
     mode = ist830x_data.mode;
-    up_read(&ist830x_data.lock);        
+    read_unlock(&ist830x_data.lock);        
 
     if(mode == IST8303_FORCE_MODE)
     {
-     //   unsigned long start;
-//        int status;
-
-        if (ODR_DELAY_TIME_MS <= 10)
-        {
-            // read first the set single measurement for next reading
-            err = IST8303_GetData(ist8303_i2c_client, databuf); // err can be : -5 or 0   
-            if (err < 0) {
-                dev_err(&ist8303_i2c_client->dev, "%s failed.", __func__);
-                return -5;
-            }
-
-            IST8303_Chipset_Enable(mode, 1);
-        }
-        else
-        {
-            IST8303_Chipset_Enable(mode, 1);
-
-            /* wait DRDY ready */
-            usleep_range(4500, 5000);
-
-            err = IST8303_GetData(ist8303_i2c_client, databuf); // err can be : -5 or 0   
-            if (err < 0) {
-                dev_err(&ist8303_i2c_client->dev, "%s failed.", __func__);
-                return -5;
-            }
-        }
-
+        //databuf[0] = IST8303_REG_CTRL3;
+        //databuf[1] = IST8303_CTRL3_FORCE_BIT;
+        i2c_master_send(ist8303_i2c_client, databuf, 2);    
+        // We can read all measured data in once
+        //cmd = IST8303_REG_DATAXH;
+        i2c_master_send(ist8303_i2c_client, &cmd, 1);    
+        i2c_master_recv(ist8303_i2c_client, &(databuf[0]), 6);
     }
     else  //  IST8303_NORMAL_MODE for ist830x
     {
-        err = wait_event_interruptible_timeout(data_ready_wq, atomic_read(&ist830x_data_ready), msecs_to_jiffies(ODR_DELAY_TIME_MS*2));
+       // int err;
+
+        err = wait_event_interruptible_timeout(data_ready_wq, atomic_read(&ist830x_data_ready), msecs_to_jiffies(50));
+#if 0 //vender changed
+        if (err < 0) {
+            dev_err(&ist8303_i2c_client->dev, "%s: wait_event failed (%d).", __func__, err);
+            return -1;
+        }
         
+        if (!atomic_read(&ist830x_data_ready)) {
+            dev_err(&ist8303_i2c_client->dev, "%s: DRDY is not set.", __func__);        
+            return -1;
+        }
+#endif
         if (err == 0) {
             printk("wait 100ms timeout \n");
             return err;
@@ -626,22 +561,38 @@ static int IST8303_ReadSensorData(char *buf, int bufsize)
             printk("interrupted by other signal \n");
             return err;
         }
-        
-        down_read(&ist830x_rawdata_lock);
-        memcpy(databuf, ist830x_msensor_raw_data, 7);  //  from : ist830x_prepare_raw_data()
-        up_read(&ist830x_rawdata_lock);
+
+        mutex_lock(&sensor_data_mutex);
+        memcpy(databuf, ist830x_msensor_raw_data, 6);  //  from : ist830x_prepare_raw_data()
+        mutex_unlock(&sensor_data_mutex);
 
         atomic_set(&ist830x_data_ready, 0);
     }
 
-    output[0] = ((int) databuf[2]) << 8 | ((int) databuf[1]);
-    output[1] = ((int) databuf[4]) << 8 | ((int) databuf[3]);
-    output[2] = ((int) databuf[6]) << 8 | ((int) databuf[5]);
+    output[0] = ((int) databuf[1]) << 8 | ((int) databuf[0]);
+    output[1] = ((int) databuf[3]) << 8 | ((int) databuf[2]);
+    output[2] = ((int) databuf[5]) << 8 | ((int) databuf[4]);
 
     // swap x/y
     temp = output[0];
     output[0] = output[1];
     output[1] = temp;
+
+    #if 0
+    cmd = 0xDE;  //  only ist8303 needs temperature compensation
+    i2c_master_send(ist8303_i2c_client, &cmd, 1);    
+    i2c_master_recv(ist8303_i2c_client, &(databuf[0]), 6);
+    B[0] = ((int) databuf[1]) << 8 | ((int)databuf[0]);
+    B[1] = ((int) databuf[3]) << 8 | ((int)databuf[2]);
+    B[2] = ((int) databuf[5]) << 8 | ((int)databuf[4]);
+
+    for (i=0;i<IST8303_AXES_NUM;i++)
+    {
+        output[i] = output[i] >> 1;
+        B[i] = B[i] >> 1;
+        output[i] -= B[i];
+    }
+    #endif
 
     mag[data->cvt.map[IST8303_AXIS_X]] = data->cvt.sign[IST8303_AXIS_X]*output[IST8303_AXIS_X];
     mag[data->cvt.map[IST8303_AXIS_Y]] = data->cvt.sign[IST8303_AXIS_Y]*output[IST8303_AXIS_Y];
@@ -649,85 +600,11 @@ static int IST8303_ReadSensorData(char *buf, int bufsize)
 
     sprintf(buf, "%d %d %d", mag[IST8303_AXIS_X], mag[IST8303_AXIS_Y], mag[IST8303_AXIS_Z]);
 
-    return 1;
-}
-
-static int IST8303_SelfTest(void)
-{
-    int err, i;
-    char buf[100];
-    int mag_raw_1[3], mag_raw_2[3];
-    char wbuffer[2];
-    
-    memset(buf, 0, 20);
-    memset(mag_raw_1, 0, 3);
-    memset(mag_raw_2, 0, 3);
-    
-    for(i=0;i<10;++i)
-    {    
-        err = IST8303_ReadSensorData(buf, 100);
-        if (err != 1)
-            printk("IST8303_ReadSensorData error \n");
-        
-        err = sscanf(buf,"%d %d %d",&mag_raw_1[0],&mag_raw_1[1],&mag_raw_1[2]);
-        if (err != 3)
-            printk("sscanf error \n");
-            
-        if(mag_raw_1[0] && mag_raw_1[1] && mag_raw_1[2])
-            break;
-    }
-    
-    if(i==10)
-        return -1;
-
-    printk("before self-test : mag_raw_1[0] = %d, mag_raw_1[1] = %d, mag_raw_1[2] = %d \n", mag_raw_1[0], mag_raw_1[1], mag_raw_1[2]);
-    
-    //  start writing self-test register
-    wbuffer[0] = IST8303_REG_STCR;
-    wbuffer[1] = 0x40;  //  self-test mode  
-    err = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-    if (err<0)
-    {
-        printk(KERN_ERR "set register IST8303_REG_STCR failed.\n");
-        return -1;
-    }
-    
-    err = IST8303_ReadSensorData(buf, 100);
-    if (err != 1)
-        printk("IST8303_ReadSensorData error \n");
-        
-    err = sscanf(buf,"%d %d %d",&mag_raw_2[0],&mag_raw_2[1],&mag_raw_2[2]);
-    if (err != 3)
-        printk("sscanf error \n");
-
-    printk("after self-test : mag_raw_2[0] = %d, mag_raw_2[1] = %d, mag_raw_2[2] = %d \n", mag_raw_2[0], mag_raw_2[1], mag_raw_2[2]);    
-    
-    if( (mag_raw_1[0]&mag_raw_2[0])>=0 && (mag_raw_1[1]&mag_raw_2[1])>=0 && (mag_raw_1[2]&mag_raw_2[2])>=0 )
-    {
-        wbuffer[0] = IST8303_REG_STCR;
-        wbuffer[1] = 0x0;  //  self-test mode  
-        err = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-        if (err<0)
-        {
-            printk(KERN_ERR "set register IST8303_REG_STCR failed.\n");
-            return -1;
-        }
-        
-        return 1;
-    }
-    else
-    {
-        wbuffer[0] = IST8303_REG_STCR;
-        wbuffer[1] = 0x0;  //  self-test mode  
-        err = ist830x_i2c_txdata(ist8303_i2c_client, wbuffer, 2);
-        if (err<0)
-        {
-            printk(KERN_ERR "set register IST8303_REG_STCR failed.\n");
-            return -1;
-        }
-        
-        return -1;
-    }
+	if(atomic_read(&data->trace) & IST_TRC_DEBUG)
+	{
+		MSE_LOG("msensor raw data:%d %d %d\n", mag[IST8303_AXIS_X], mag[IST8303_AXIS_Y], mag[IST8303_AXIS_Z]);//debug
+	}
+    return err;
 }
 /*----------------------------------------------------------------------------*/
 static int IST8303_ReadPostureData(char *buf, int bufsize)
@@ -737,10 +614,10 @@ static int IST8303_ReadPostureData(char *buf, int bufsize)
         return -1;
     }
     
-    down_read(&ist8303mid_data.datalock);
+    read_lock(&ist8303mid_data.datalock);
     sprintf(buf, "%d %d %d %d", ist8303mid_data.yaw, ist8303mid_data.pitch,
         ist8303mid_data.roll, ist8303mid_data.mag_status);
-    up_read(&ist8303mid_data.datalock);
+    read_unlock(&ist8303mid_data.datalock);
     return 0;
 }
 /*----------------------------------------------------------------------------*/
@@ -751,10 +628,10 @@ static int IST8303_ReadCaliData(char *buf, int bufsize)
         return -1;
     }
     
-    down_read(&ist8303mid_data.datalock);
+    read_lock(&ist8303mid_data.datalock);
     sprintf(buf, "%d %d %d %d", ist8303mid_data.nmx, ist8303mid_data.nmy, 
         ist8303mid_data.nmz,ist8303mid_data.mag_status);
-    up_read(&ist8303mid_data.datalock);
+    read_unlock(&ist8303mid_data.datalock);
     return 0;
 }
 /*----------------------------------------------------------------------------*/
@@ -765,12 +642,12 @@ static int IST8303_ReadMiddleControl(char *buf, int bufsize)
         return -1;
     }
     
-    down_read(&ist8303mid_data.ctrllock);
+    read_lock(&ist8303mid_data.ctrllock);
     sprintf(buf, "%d %d %d %d %d %d %d %d %d %d",ist8303mid_data.controldata[0],    ist8303mid_data.controldata[1], 
         ist8303mid_data.controldata[2],ist8303mid_data.controldata[3],ist8303mid_data.controldata[4],
         ist8303mid_data.controldata[5], ist8303mid_data.controldata[6], ist8303mid_data.controldata[7],
         ist8303mid_data.controldata[8], ist8303mid_data.controldata[9]);
-    up_read(&ist8303mid_data.ctrllock);
+    read_unlock(&ist8303mid_data.ctrllock);
     return 0;
 }
 /*----------------------------------------------------------------------------*/
@@ -822,9 +699,9 @@ static ssize_t store_midcontrol_value(struct device_driver *ddri, const char *bu
     if(10 == sscanf(buf, "%d %d %d %d %d %d %d %d %d %d",&p[0], &p[1], &p[2], &p[3], &p[4], 
         &p[5], &p[6], &p[7], &p[8], &p[9]))
     {
-        down_write(&ist8303mid_data.ctrllock);
+        write_lock(&ist8303mid_data.ctrllock);
         memcpy(&ist8303mid_data.controldata[0], &p, sizeof(int)*10);    
-        up_write(&ist8303mid_data.ctrllock);        
+        write_unlock(&ist8303mid_data.ctrllock);        
     }
     else
     {
@@ -836,9 +713,9 @@ static ssize_t store_midcontrol_value(struct device_driver *ddri, const char *bu
 static ssize_t show_middebug_value(struct device_driver *ddri, char *buf)
 {
     ssize_t len;
-    down_read(&ist8303mid_data.ctrllock);
+    read_lock(&ist8303mid_data.ctrllock);
     len = sprintf(buf, "0x%08X\n", ist8303mid_data.debug);
-    up_read(&ist8303mid_data.ctrllock);
+    read_unlock(&ist8303mid_data.ctrllock);
 
     return len;            
 }
@@ -848,9 +725,9 @@ static ssize_t store_middebug_value(struct device_driver *ddri, const char *buf,
     int debug;
     if(1 == sscanf(buf, "0x%x", &debug))
     {
-        down_write(&ist8303mid_data.ctrllock);
+        write_lock(&ist8303mid_data.ctrllock);
         ist8303mid_data.debug = debug;
-        up_write(&ist8303mid_data.ctrllock);        
+        write_unlock(&ist8303mid_data.ctrllock);        
     }
     else
     {
@@ -862,9 +739,9 @@ static ssize_t store_middebug_value(struct device_driver *ddri, const char *buf,
 static ssize_t show_mode_value(struct device_driver *ddri, char *buf)
 {
     int mode=0;
-    down_read(&ist830x_data.lock);
+    read_lock(&ist830x_data.lock);
     mode = ist830x_data.mode;
-    up_read(&ist830x_data.lock);        
+    read_unlock(&ist830x_data.lock);        
     return sprintf(buf, "%d\n", mode);            
 }
 /*----------------------------------------------------------------------------*/
@@ -933,8 +810,9 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
         len += snprintf(buf+len, PAGE_SIZE-len, "CUST: NULL\n");
     }
     
-    len += snprintf(buf+len, PAGE_SIZE-len, "OPEN: %d\n", atomic_read(&dev_open_count));
-    return len;
+    //len += snprintf(buf+len, PAGE_SIZE-len, "OPEN: %d\n", atomic_read(&dev_open_count));
+	len += snprintf(buf+len, PAGE_SIZE-len, "M-OPEN: %d, O-OPEN: %d\n", atomic_read(&m_flag), atomic_read(&o_flag));//changed by wxj 2014.5.16
+	return len;
 }
 /*----------------------------------------------------------------------------*/
 static ssize_t show_trace_value(struct device_driver *ddri, char *buf)
@@ -958,7 +836,7 @@ static ssize_t store_trace_value(struct device_driver *ddri, const char *buf, si
     if(NULL == obj)
     {
         MSE_ERR("ist8303_i2c_data is null!!\n");
-        return count;
+        return 0;
     }
     
     if(1 == sscanf(buf, "0x%x", &trace))
@@ -967,35 +845,17 @@ static ssize_t store_trace_value(struct device_driver *ddri, const char *buf, si
     }
     else 
     {
-        MSE_ERR("invalid content: '%s', length = %zu\n", buf, count);
+        MSE_ERR("invalid content: '%s', length = %d\n", buf, count);
     }
     
     return count;    
 }
-
-static ssize_t show_shipment_test(struct device_driver *ddri, char *buf)
+/*-------------------------------------------------------------*/
+static ssize_t show_version_value(struct device_driver *ddri, char *buf)
 {
-    char result[10];
-    int res = 0;
-    
-    res = IST8303_SelfTest();
-	
-    if(1 == res)
-    {
-        strcpy(result,"y");
-    }
-    else if(-1 == res)
-    {
-        strcpy(result,"n");
-    }
-
-    return sprintf(buf, "%s\n", result);        
+    return sprintf(buf, "%s\n", DRIVER_VERSION); 
 }
 
-static ssize_t store_shipment_test(struct device_driver * ddri,const char * buf, size_t count)
-{
-    return count;            
-}
 
 /*----------------------------------------------------------------------------*/
 static DRIVER_ATTR(daemon,      S_IRUGO, show_daemon_name, NULL);
@@ -1009,21 +869,22 @@ static DRIVER_ATTR(mode,        S_IRUGO | S_IWUSR, show_mode_value, store_mode_v
 static DRIVER_ATTR(layout,      S_IRUGO | S_IWUSR, show_layout_value, store_layout_value );
 static DRIVER_ATTR(status,      S_IRUGO, show_status_value, NULL);
 static DRIVER_ATTR(trace,       S_IRUGO | S_IWUSR, show_trace_value, store_trace_value );
-static DRIVER_ATTR(shipmenttest,S_IRUGO | S_IWUSR, show_shipment_test, store_shipment_test);
+static DRIVER_ATTR(version,       S_IRUGO | S_IWUSR, show_version_value, NULL);
+
 /*----------------------------------------------------------------------------*/
 static struct driver_attribute *ist8303_attr_list[] = {
     &driver_attr_daemon,
     &driver_attr_chipinfo,
     &driver_attr_sensordata,
     &driver_attr_posturedata,
-    &driver_attr_calidata,
+   // &driver_attr_calidata,
     &driver_attr_midcontrol,
-    &driver_attr_middebug,
+    //&driver_attr_middebug,
     &driver_attr_mode,
     &driver_attr_layout,
     &driver_attr_status,
     &driver_attr_trace,
-    &driver_attr_shipmenttest,
+    &driver_attr_version,
 };
 /*----------------------------------------------------------------------------*/
 static int ist8303_create_attr(struct device_driver *driver) 
@@ -1114,14 +975,15 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
     uint32_t enable;
     char buff[512]; 
     int status;                 /* for OPEN/CLOSE_STATUS */
-//    short sensor_status;        /* for Orientation and Msensor status */
+    short sensor_status;        /* for Orientation and Msensor status */
+//  MSE_FUN(f);
 
     switch (cmd)
     {
         case MSENSOR_IOCTL_INIT:
-            down_read(&ist830x_data.lock);
+            read_lock(&ist830x_data.lock);
             mode = ist830x_data.mode;
-            up_read(&ist830x_data.lock);
+            read_unlock(&ist830x_data.lock);
             IST8303_Chipset_Init(mode);         
             break;
 
@@ -1139,25 +1001,34 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
                 goto err_out;
             }
             
-            down_write(&ist8303mid_data.datalock);
+            write_lock(&ist8303mid_data.datalock);
             ist8303mid_data.yaw   = valuebuf[0];
             ist8303mid_data.pitch = valuebuf[1];
             ist8303mid_data.roll  = valuebuf[2];
             ist8303mid_data.mag_status = valuebuf[3];
-            up_write(&ist8303mid_data.datalock);    
+            write_unlock(&ist8303mid_data.datalock);    
             break;
 
-        case ECS_IOCTL_GET_OPEN_STATUS:
-            status = ist8303_GetOpenStatus();           
-            if(copy_to_user(argp, &status, sizeof(status)))
+        case ECOMPASS_IOC_GET_OFLAG:
+            sensor_status = atomic_read(&o_flag);
+            if(copy_to_user(argp, &sensor_status, sizeof(sensor_status)))
             {
-                MSE_LOG("copy_to_user failed.");
+                MSE_ERR("copy_to_user failed.");
                 return -EFAULT;
             }
-            break;        
+            break;
 
-        case ECS_IOCTL_GET_CLOSE_STATUS:
-            status = ist8303_GetCloseStatus();           
+        case ECOMPASS_IOC_GET_MFLAG:
+            sensor_status = atomic_read(&m_flag);
+            if(copy_to_user(argp, &sensor_status, sizeof(sensor_status)))
+            {
+                MSE_ERR("copy_to_user failed.");
+                return -EFAULT;
+            }
+            break;
+            
+        case ECOMPASS_IOC_GET_OPEN_STATUS:
+            status = ist8303_GetOpenStatus();           
             if(copy_to_user(argp, &status, sizeof(status)))
             {
                 MSE_LOG("copy_to_user failed.");
@@ -1177,43 +1048,39 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
                 retval = -EFAULT;
                 goto err_out;
             }
-
-            down_write(&ist8303mid_data.datalock);            
+            
+            write_lock(&ist8303mid_data.datalock);            
             ist8303mid_data.nmx = calidata[1];
             ist8303mid_data.nmy = calidata[2];
             ist8303mid_data.nmz = calidata[3];
             ist8303mid_data.mag_status = calidata[4];
-            ist8303mid_data.nmx_uncali = calidata[5];
-            ist8303mid_data.nmy_uncali = calidata[6];
-            ist8303mid_data.nmz_uncali = calidata[7];
-            ist8303mid_data.mag_status_uncali = calidata[8];
-            ist8303mid_data.yaw   = calidata[9];
-            ist8303mid_data.pitch = calidata[10];
-            ist8303mid_data.roll  = calidata[11];
-            ist8303mid_data.ori_status = calidata[12];
-#ifdef SOFT_GYRO
-            ist8303mid_data.ngx = calidata[13];
-            ist8303mid_data.ngy = calidata[14];
-            ist8303mid_data.ngz = calidata[15];
-            ist8303mid_data.gyro_status = calidata[16];
-            ist8303mid_data.rv[0] = calidata[17];
-            ist8303mid_data.rv[1] = calidata[18];
-            ist8303mid_data.rv[2] = calidata[19];
-            ist8303mid_data.rv[3] = calidata[20];
-            ist8303mid_data.rv_status = calidata[21];
+            ist8303mid_data.yaw   = calidata[5];
+            ist8303mid_data.pitch = calidata[6];
+            ist8303mid_data.roll  = calidata[7];
+            ist8303mid_data.ori_status = calidata[8];
+        #ifdef SOFT_GYRO
+            ist8303mid_data.ngx = calidata[9];
+            ist8303mid_data.ngy = calidata[10];
+            ist8303mid_data.ngz = calidata[11];
+            ist8303mid_data.gyro_status = calidata[12];
+            ist8303mid_data.rv[0] = calidata[13];
+            ist8303mid_data.rv[1] = calidata[14];
+            ist8303mid_data.rv[2] = calidata[15];
+            ist8303mid_data.rv[3] = calidata[16];
+            ist8303mid_data.rv_status = calidata[17];
 #ifdef REPLACE_ANDROID_VIRTUAL_SENSOR
-            ist8303mid_data.ngrx = calidata[22];
-            ist8303mid_data.ngry = calidata[23];
-            ist8303mid_data.ngrz = calidata[24];
-            ist8303mid_data.gra_status = calidata[25];
-            ist8303mid_data.nlax = calidata[26];
-            ist8303mid_data.nlay = calidata[27];
-            ist8303mid_data.nlaz = calidata[28];
-            ist8303mid_data.la_status = calidata[29];
+            ist8303mid_data.ngrx = calidata[18];
+            ist8303mid_data.ngry = calidata[19];
+            ist8303mid_data.ngrz = calidata[20];
+            ist8303mid_data.gra_status = calidata[21];
+            ist8303mid_data.nlax = calidata[22];
+            ist8303mid_data.nlay = calidata[23];
+            ist8303mid_data.nlaz = calidata[24];
+            ist8303mid_data.la_status = calidata[25];
 #endif
-#endif
+        #endif
 
-            up_write(&ist8303mid_data.datalock);
+            write_unlock(&ist8303mid_data.datalock);
             //printk("[qnmd] calidata[7] = %d,calidata[8] = %d,calidata[9] = %d\n",calidata[7],calidata[8],calidata[9]);    
             break;                                
 
@@ -1227,23 +1094,6 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
             
             IST8303_ReadChipInfo(strbuf, IST8303_BUFSIZE);
             if(copy_to_user(data, strbuf, strlen(strbuf)+1))
-            {
-                retval = -EFAULT;
-                goto err_out;
-            }                
-            break;
-
-        case ECOMPASS_IOC_GET_DELAY:
-            data = (void __user *) arg;
-            if(data == NULL)
-            {
-                MSE_ERR("IO parameter pointer is NULL!\r\n");
-                break;
-            }
-
-            status = ODR_DELAY_TIME_MS;
-            
-            if(copy_to_user(data, &status, sizeof(status)))
             {
                 retval = -EFAULT;
                 goto err_out;
@@ -1266,19 +1116,24 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
             else
             {
                 printk( "MSENSOR_IOCTL_SENSOR_ENABLE enable=%d!\r\n",enable);
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(enable == 1)
                 {
                     ist8303mid_data.controldata[7] |= SENSOR_ORIENTATION;
+                    atomic_set(&o_flag, 1);
                     atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_ORIENTATION;
-                    atomic_set(&open_flag, 0);
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
+                    {
+                        atomic_set(&open_flag, 0);
+                    }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
                 
             }
             
@@ -1291,6 +1146,7 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
                 MSE_ERR("IO parameter pointer is NULL!\r\n");
                 break;    
             }
+            //IST8303_ReadSensorData(strbuf, IST8303_BUFSIZE);
             
             status = IST8303_ReadSensorData(strbuf, IST8303_BUFSIZE);
             if (status < 0)
@@ -1303,12 +1159,12 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
                 retval = -ETIME;
                 goto err_out;
             }
-            
+			
             if(copy_to_user(data, strbuf, strlen(strbuf)+1))
             {
                 retval = -EFAULT;
                 goto err_out;
-            }
+            }                
             break;
 
         case MSENSOR_IOCTL_READ_FACTORY_SENSORDATA:
@@ -1322,12 +1178,12 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
             
             osensor_data = (hwm_sensor_data *)buff;
 
-            down_read(&ist8303mid_data.datalock);
+            read_lock(&ist8303mid_data.datalock);
             osensor_data->values[0] = ist8303mid_data.yaw;
             osensor_data->values[1] = ist8303mid_data.pitch;
             osensor_data->values[2] = ist8303mid_data.roll;
             //status = ist8303mid_data.mag_status;
-            up_read(&ist8303mid_data.datalock); 
+            read_unlock(&ist8303mid_data.datalock); 
                         
             osensor_data->value_divide = ORIENTATION_ACCURACY_RATE; 
 
@@ -1388,9 +1244,9 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
             break;
 
         case MSENSOR_IOCTL_READ_CONTROL:
-            down_read(&ist8303mid_data.ctrllock);
+            read_lock(&ist8303mid_data.ctrllock);
             memcpy(controlbuf, &ist8303mid_data.controldata[0], sizeof(controlbuf));
-            up_read(&ist8303mid_data.ctrllock);            
+            read_unlock(&ist8303mid_data.ctrllock);            
             data = (void __user *) arg;
             if(data == NULL)
             {
@@ -1414,9 +1270,9 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
                 retval = -EFAULT;
                 goto err_out;
             }    
-            down_write(&ist8303mid_data.ctrllock);
+            write_lock(&ist8303mid_data.ctrllock);
             memcpy(&ist8303mid_data.controldata[0], controlbuf, sizeof(controlbuf));
-            up_write(&ist8303mid_data.ctrllock);        
+            write_unlock(&ist8303mid_data.ctrllock);        
             break;
 
         case MSENSOR_IOCTL_SET_MODE:
@@ -1443,160 +1299,12 @@ static long ist8303_unlocked_ioctl(struct file *file, unsigned int cmd,
     err_out:
     return retval;    
 }
-
-#ifdef CONFIG_COMPAT
-static long ist8303_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-    long ret = 0;
-
-    void __user *arg64 = compat_ptr(arg);
-    if ( !file->f_op || !file->f_op->unlocked_ioctl )
-    {
-        printk(KERN_ERR "file->f_op OR file->f_op->unlocked_ioctl is null!\n");
-        return -ENOTTY;
-    }
-
-    switch (cmd)
-    {
-        case COMPAT_MSENSOR_IOCTL_INIT:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_INIT, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_INIT is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_SET_POSTURE:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_SET_POSTURE, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_SET_POSTURE is failed!\n");
-            }
-            break;
-
-        case COMPAT_ECS_IOCTL_GET_OPEN_STATUS:
-            ret = file->f_op->unlocked_ioctl(file, ECS_IOCTL_GET_OPEN_STATUS, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "ECS_IOCTL_GET_OPEN_STATUS is failed!\n");
-            }
-            break;
-
-        case COMPAT_ECS_IOCTL_GET_CLOSE_STATUS:
-            ret = file->f_op->unlocked_ioctl(file, ECS_IOCTL_GET_CLOSE_STATUS, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "ECS_IOCTL_GET_CLOSE_STATUS is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_SET_CALIDATA:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_SET_CALIDATA, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_SET_CALIDATA is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_CHIPINFO:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_CHIPINFO, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_CHIPINFO is failed!\n");
-            }
-            break;
-
-        case COMPAT_ECOMPASS_IOC_GET_DELAY:
-            ret = file->f_op->unlocked_ioctl(file, ECOMPASS_IOC_GET_DELAY, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "ECOMPASS_IOC_GET_DELAY is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_SENSOR_ENABLE:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_SENSOR_ENABLE, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_SENSOR_ENABLE is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_SENSORDATA:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_SENSORDATA, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_SENSORDATA is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_FACTORY_SENSORDATA:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_FACTORY_SENSORDATA, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_FACTORY_SENSORDATA is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_POSTUREDATA:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_POSTUREDATA, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_POSTUREDATA is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_CALIDATA:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_CALIDATA, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_CALIDATA is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_READ_CONTROL:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_READ_CONTROL, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_READ_CONTROL is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_SET_CONTROL:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_SET_CONTROL, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_SET_CONTROL is failed!\n");
-            }
-            break;
-
-        case COMPAT_MSENSOR_IOCTL_SET_MODE:
-            ret = file->f_op->unlocked_ioctl(file, MSENSOR_IOCTL_SET_MODE, (unsigned long)arg64);
-            if (ret < 0)
-            {
-                printk(KERN_ERR "MSENSOR_IOCTL_SET_MODE is failed!\n");
-            }
-            break;
-
-        default:
-            MSE_ERR("%s not supported = 0x%04x", __FUNCTION__, cmd);
-            ret = -ENOIOCTLCMD;
-            break;
-    }
-
-    return ret;
-}
-#endif
-
 /*----------------------------------------------------------------------------*/
 static struct file_operations ist8303_fops = {
 //  .owner = THIS_MODULE,
     .open = ist8303_open,
     .release = ist8303_release,
     .unlocked_ioctl = ist8303_unlocked_ioctl,//modified
-#ifdef CONFIG_COMPAT
-    .compat_ioctl = ist8303_compat_ioctl,
-#endif
 };
 /*----------------------------------------------------------------------------*/
 static struct miscdevice ist8303_device = {
@@ -1605,15 +1313,20 @@ static struct miscdevice ist8303_device = {
     .fops = &ist8303_fops,
 };
 /*----------------------------------------------------------------------------*/
-#ifndef IST8303_M_NEW_ARCH  
 
 int ist8303_operate(void* self, uint32_t command, void* buff_in, int size_in,
         void* buff_out, int size_out, int* actualout)
 {
     int err = 0;
-    int value, status;
+    int value, sample_delay, status;
     hwm_sensor_data* msensor_data;
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
 
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+		MSE_FUN(f);
+	}
+    
     switch (command)
     {
         case SENSOR_DELAY:
@@ -1642,35 +1355,34 @@ int ist8303_operate(void* self, uint32_t command, void* buff_in, int size_in,
             else
             {
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
-                if (value == 1)
+                read_lock(&ist8303mid_data.ctrllock);
+                if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_MAGNETIC;
+                    atomic_set(&m_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_MAGNETIC;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&m_flag, 0);
+                    if(atomic_read(&o_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
+
+				MSE_LOG("msensor enable/disable ok!status = %d\n",atomic_read(&m_flag));//debug
                 // TODO: turn device into standby or normal mode
             }
             break;
@@ -1685,12 +1397,12 @@ int ist8303_operate(void* self, uint32_t command, void* buff_in, int size_in,
             else
             {
                 msensor_data = (hwm_sensor_data *)buff_out;
-                down_read(&ist8303mid_data.datalock);
+                read_lock(&ist8303mid_data.datalock);
                 msensor_data->values[0] = ist8303mid_data.nmx;
                 msensor_data->values[1] = ist8303mid_data.nmy;
                 msensor_data->values[2] = ist8303mid_data.nmz;
                 status = ist8303mid_data.mag_status;
-                up_read(&ist8303mid_data.datalock); 
+                read_unlock(&ist8303mid_data.datalock); 
                 
                 msensor_data->values[0] = msensor_data->values[0] * CONVERT_M;
                 msensor_data->values[1] = msensor_data->values[1] * CONVERT_M;
@@ -1712,8 +1424,11 @@ int ist8303_operate(void* self, uint32_t command, void* buff_in, int size_in,
                         msensor_data->status = SENSOR_STATUS_UNRELIABLE;
                         break;    
                 }
-                
-            }
+				if(atomic_read(&obj->trace) & IST_TRC_M_DATA)
+				{
+                	MSE_LOG("msensor data: %d, %d, %d, %d\n",msensor_data->values[0],msensor_data->values[1],msensor_data->values[2],msensor_data->status);//debug
+				}
+			}
             break;
         default:
             MSE_ERR("msensor operate function no this parameter %d!\n", command);
@@ -1729,9 +1444,15 @@ int ist8303_orientation_operate(void* self, uint32_t command, void* buff_in, int
         void* buff_out, int size_out, int* actualout)
 {
     int err = 0;
-    int value, status=0;
+    int value, sample_delay, status=0;
     hwm_sensor_data* osensor_data=NULL;
-    
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
+
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+    	MSE_FUN(f);
+	}
+	
     switch (command)
     {
         case SENSOR_DELAY:
@@ -1760,35 +1481,34 @@ int ist8303_orientation_operate(void* self, uint32_t command, void* buff_in, int
             else
             {
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_ORIENTATION;
+                    atomic_set(&o_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_ORIENTATION;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
+
+				MSE_LOG("osensor enable/disable ok!status = %d\n",atomic_read(&o_flag));//debug
                 // Do nothing
             }
             break;
@@ -1803,31 +1523,35 @@ int ist8303_orientation_operate(void* self, uint32_t command, void* buff_in, int
             else
             {
                 osensor_data = (hwm_sensor_data *)buff_out;
-                down_read(&ist8303mid_data.datalock);
+                read_lock(&ist8303mid_data.datalock);
                 osensor_data->values[0] = ist8303mid_data.yaw;
                 osensor_data->values[1] = ist8303mid_data.pitch;
                 osensor_data->values[2] = ist8303mid_data.roll;
                 status = ist8303mid_data.mag_status;
-                up_read(&ist8303mid_data.datalock); 
+                read_unlock(&ist8303mid_data.datalock); 
                 
                 
                 osensor_data->value_divide = ORIENTATION_ACCURACY_RATE;             
-            }
-
-            switch (status)
-            {
-                case 1: case 2:
-                    osensor_data->status = SENSOR_STATUS_ACCURACY_HIGH;
-                    break;
-                case 3:
-                    osensor_data->status = SENSOR_STATUS_ACCURACY_MEDIUM;
-                    break;
-                case 4:
-                    osensor_data->status = SENSOR_STATUS_ACCURACY_LOW;
-                    break;
-                default:        
-                    osensor_data->status = SENSOR_STATUS_UNRELIABLE;
-                    break;    
+            
+	            switch (status)
+	            {
+	                case 1: case 2:
+	                    osensor_data->status = SENSOR_STATUS_ACCURACY_HIGH;
+	                    break;
+	                case 3:
+	                    osensor_data->status = SENSOR_STATUS_ACCURACY_MEDIUM;
+	                    break;
+	                case 4:
+	                    osensor_data->status = SENSOR_STATUS_ACCURACY_LOW;
+	                    break;
+	                default:        
+	                    osensor_data->status = SENSOR_STATUS_UNRELIABLE;
+	                    break;    
+	            }
+				if(atomic_read(&obj->trace) & IST_TRC_O_DATA)
+				{
+					MSE_LOG("osensor data: %d, %d, %d, %d\n",osensor_data->values[0],osensor_data->values[1],osensor_data->values[2],osensor_data->status);//debug
+            	}
             }
             break;
         default:
@@ -1838,7 +1562,7 @@ int ist8303_orientation_operate(void* self, uint32_t command, void* buff_in, int
 
     return err;
 }
-#endif
+
 /*----------------------------------------------------------------------------*/
 #ifdef SOFT_GYRO
 int ist8303_gyro_operate(void* self, uint32_t command, void* buff_in, int size_in,
@@ -1847,13 +1571,21 @@ int ist8303_gyro_operate(void* self, uint32_t command, void* buff_in, int size_i
     int err = 0;
     int value ,status;
     hwm_sensor_data* gysensor_data; 
-    
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
+
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+		MSE_FUN(f);
+	}
+
+
     switch (command)
     {
         case SENSOR_DELAY:
+            MSE_LOG("ist8303_gyro_delay");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Set delay parameter error!\n");
+                printk(KERN_ERR "Set delay parameter error!\n");
                 err = -EINVAL;
             }
             else
@@ -1868,65 +1600,69 @@ int ist8303_gyro_operate(void* self, uint32_t command, void* buff_in, int size_i
             break;
 
         case SENSOR_ENABLE:
+            MSE_LOG("ist8303_gyro_enable");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Enable sensor parameter error!\n");
+                printk(KERN_ERR "Enable sensor parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_GYROSCOPE;
+                    atomic_set(&o_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_GYROSCOPE;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
             }
             break;
 
         case SENSOR_GET_DATA:
+           // MSE_LOG("ist8303_gyro_data");
             if((buff_out == NULL) || (size_out< sizeof(hwm_sensor_data)))
             {
-                MSE_ERR("get sensor data parameter error!\n");
+                printk(KERN_ERR "get sensor data parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 gysensor_data = (hwm_sensor_data *)buff_out;
 
-                down_read(&ist8303mid_data.datalock);
-                gysensor_data->values[0] = ist8303mid_data.ngx;
-                gysensor_data->values[1] = ist8303mid_data.ngy;
-                gysensor_data->values[2] = ist8303mid_data.ngz;
+                read_lock(&ist8303mid_data.datalock);
+                gysensor_data->values[0] = ist8303mid_data.ngx / 10;
+                gysensor_data->values[1] = ist8303mid_data.ngy / 10;
+                gysensor_data->values[2] = ist8303mid_data.ngz / 10;
                 status = ist8303mid_data.gyro_status;
-                up_read(&ist8303mid_data.datalock); 
-                
-                gysensor_data->value_divide = 100000;
+                read_unlock(&ist8303mid_data.datalock); 
+				
+                if(atomic_read(&obj->trace) & IST_TRC_GYRO_DATA)
+                {
+					MSE_LOG("[qnmd] gyrosensor x = %d ,y = %d z = %d\n",gysensor_data->values[0],gysensor_data->values[1],gysensor_data->values[2]);
+                }
+				
+				gysensor_data->value_divide = 10;
 
                 switch (status)
                 {
@@ -1947,7 +1683,7 @@ int ist8303_gyro_operate(void* self, uint32_t command, void* buff_in, int size_i
             }
             break;
         default:
-            MSE_ERR("sensor operate function no this parameter %d!\n", command);
+            printk(KERN_ERR "gsensor operate function no this parameter %d!\n", command);
             err = -1;
             break;
     }
@@ -1961,13 +1697,20 @@ int ist8303_rotation_vector_operate(void* self, uint32_t command, void* buff_in,
     int err = 0;
     int value ,status;
     hwm_sensor_data* gysensor_data; 
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
+
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+		MSE_FUN(f);
+	}
 
     switch (command)
     {
         case SENSOR_DELAY:
+            MSE_LOG("ist8303_rotation_vector_delay");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Set delay parameter error!\n");
+                printk(KERN_ERR "Set delay parameter error!\n");
                 err = -EINVAL;
             }
             else
@@ -1982,64 +1725,67 @@ int ist8303_rotation_vector_operate(void* self, uint32_t command, void* buff_in,
             break;
 
         case SENSOR_ENABLE:
+            MSE_LOG("ist8303_rotation_vector_enable");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                 MSE_ERR("Enable sensor parameter error!\n");
+                printk(KERN_ERR "Enable sensor parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_ROTATION_VECTOR;
+                    atomic_set(&o_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_ROTATION_VECTOR;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
             }
             break;
 
         case SENSOR_GET_DATA:
+           // MSE_ERR("ist8303_rotation_vector_data");
             if((buff_out == NULL) || (size_out< sizeof(hwm_sensor_data)))
             {
-                MSE_ERR("get sensor data parameter error!\n");
+                printk(KERN_ERR "get sensor data parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 gysensor_data = (hwm_sensor_data *)buff_out;
 
-                down_read(&ist8303mid_data.datalock);
+                read_lock(&ist8303mid_data.datalock);
                 gysensor_data->values[0] = ist8303mid_data.rv[0];
                 gysensor_data->values[1] = ist8303mid_data.rv[1];
                 gysensor_data->values[2] = ist8303mid_data.rv[2];
                 status = ist8303mid_data.rv_status;
-                up_read(&ist8303mid_data.datalock); 
+                read_unlock(&ist8303mid_data.datalock); 
 
-                gysensor_data->value_divide = 1000000;
+				if(atomic_read(&obj->trace) & IST_TRC_LINEAR_ACC_DATA)
+				{
+                	MSE_LOG("[qnmd] rotation_vec_sensor x = %d ,y = %d z = %d\n",gysensor_data->values[0],gysensor_data->values[1],gysensor_data->values[2]);
+				}
+				gysensor_data->value_divide = 100000;
 
                 switch (status)
                 {
@@ -2060,7 +1806,7 @@ int ist8303_rotation_vector_operate(void* self, uint32_t command, void* buff_in,
             }
             break;
         default:
-            MSE_ERR("sensor operate function no this parameter %d!\n", command);
+            printk(KERN_ERR "gsensor operate function no this parameter %d!\n", command);
             err = -1;
             break;
     }
@@ -2075,13 +1821,21 @@ int ist8303_gravity_operate(void* self, uint32_t command, void* buff_in, int siz
     int err = 0;
     int value ,status;
     hwm_sensor_data* gysensor_data; 
-    
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
+
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+		MSE_FUN(f);
+	}
+
+
     switch (command)
     {
         case SENSOR_DELAY:
+            MSE_ERR("ist8303_gravity_delay");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Set delay parameter error!\n");
+                printk(KERN_ERR "Set delay parameter error!\n");
                 err = -EINVAL;
             }
             else
@@ -2096,63 +1850,63 @@ int ist8303_gravity_operate(void* self, uint32_t command, void* buff_in, int siz
             break;
 
         case SENSOR_ENABLE:
+            MSE_ERR("ist8303_gravity_enable");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Enable sensor parameter error!\n");
+                printk(KERN_ERR "Enable sensor parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_GRAVITY;
+                    atomic_set(&o_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_GRAVITY;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
             }
             break;
 
         case SENSOR_GET_DATA:
+            //MSE_ERR("ist8303_gravity_data");
             if((buff_out == NULL) || (size_out< sizeof(hwm_sensor_data)))
             {
-                MSE_ERR("get sensor data parameter error!\n");
+                printk(KERN_ERR "get sensor data parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 gysensor_data = (hwm_sensor_data *)buff_out;
 
-                down_read(&ist8303mid_data.datalock);
+                read_lock(&ist8303mid_data.datalock);
                 gysensor_data->values[0] = ist8303mid_data.ngrx;
                 gysensor_data->values[1] = ist8303mid_data.ngry;
                 gysensor_data->values[2] = ist8303mid_data.ngrz;
                 status = ist8303mid_data.gra_status;
-                up_read(&ist8303mid_data.datalock); 
+                read_unlock(&ist8303mid_data.datalock); 
                 
+                //printk("[qnmd] gysensor x = %d ,y = %d z = %d\n",gysensor_data->values[0],gysensor_data->values[1],gysensor_data->values[2]);
                 gysensor_data->value_divide = 1000;
 
                 switch (status)
@@ -2170,11 +1924,14 @@ int ist8303_gravity_operate(void* self, uint32_t command, void* buff_in, int siz
                         gysensor_data->status = SENSOR_STATUS_UNRELIABLE;
                         break;    
                 }
-                
+                if(atomic_read(&obj->trace) & IST_TRC_GRAVITY_DATA)
+                {
+					MSE_LOG("[qnmd] gravitysensor x = %d ,y = %d z = %d\n",gysensor_data->values[0],gysensor_data->values[1],gysensor_data->values[2]);
+				}
             }
             break;
         default:
-            MSE_ERR("sensor operate function no this parameter %d!\n", command);
+            printk(KERN_ERR "gravitysensor operate function no this parameter %d!\n", command);
             err = -1;
             break;
     }
@@ -2188,13 +1945,21 @@ int ist8303_linear_acceleration_operate(void* self, uint32_t command, void* buff
     int err = 0;
     int value ,status;
     hwm_sensor_data* gysensor_data; 
-    
+	struct ist8303_i2c_data *obj = (struct ist8303_i2c_data *)self;
+
+	if(atomic_read(&obj->trace) & IST_TRC_DEBUG)
+	{
+		MSE_FUN(f);
+	}
+
+
     switch (command)
     {
         case SENSOR_DELAY:
+            MSE_ERR("ist8303_linear_acceleration_delay");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Set delay parameter error!\n");
+                printk(KERN_ERR "Set delay parameter error!\n");
                 err = -EINVAL;
             }
             else
@@ -2209,64 +1974,67 @@ int ist8303_linear_acceleration_operate(void* self, uint32_t command, void* buff
             break;
 
         case SENSOR_ENABLE:
+            MSE_ERR("ist8303_linear_acceleration_enable");
             if((buff_in == NULL) || (size_in < sizeof(int)))
             {
-                MSE_ERR("Enable sensor parameter error!\n");
+                printk(KERN_ERR "Enable sensor parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
+                read_lock(&ist8303mid_data.ctrllock);
                 if(value == 1)
                 {
                     if (ist8303mid_data.controldata[7] == 0)
                     {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
+                        schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
                     }
                     ist8303mid_data.controldata[7] |= SENSOR_LINEAR_ACCELERATION;
+                    atomic_set(&o_flag, 1);
+                    atomic_set(&open_flag, 1);
                 }
                 else
                 {
                     ist8303mid_data.controldata[7] &= ~SENSOR_LINEAR_ACCELERATION;
-                    if (ist8303mid_data.controldata[7] == 0)
+                    atomic_set(&o_flag, 0);
+                    if(atomic_read(&m_flag) == 0)
                     {
                         atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
+                    }
+                    if (ist8303mid_data.controldata[7] == 0)
+                    {
+                        cancel_delayed_work_sync(&ist_get_raw_data_work);
                     }
                 }
                 wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
+                read_unlock(&ist8303mid_data.ctrllock);
             }
             break;
 
         case SENSOR_GET_DATA:
+            //MSE_ERR("ist8303_linear_acceleration_data");
             if((buff_out == NULL) || (size_out< sizeof(hwm_sensor_data)))
             {
-                MSE_ERR("get sensor data parameter error!\n");
+                printk(KERN_ERR "get sensor data parameter error!\n");
                 err = -EINVAL;
             }
             else
             {
                 gysensor_data = (hwm_sensor_data *)buff_out;
 
-                down_read(&ist8303mid_data.datalock);
+                read_lock(&ist8303mid_data.datalock);
                 gysensor_data->values[0] = ist8303mid_data.nlax;
                 gysensor_data->values[1] = ist8303mid_data.nlay;
                 gysensor_data->values[2] = ist8303mid_data.nlaz;
                 status = ist8303mid_data.la_status;
-                up_read(&ist8303mid_data.datalock); 
+                read_unlock(&ist8303mid_data.datalock); 
 
-                gysensor_data->value_divide = 1000;
+				if(atomic_read(&obj->trace) & IST_TRC_LINEAR_ACC_DATA)
+				{
+                	MSE_LOG("[qnmd] linear_accsensor x = %d ,y = %d z = %d\n",gysensor_data->values[0],gysensor_data->values[1],gysensor_data->values[2]);
+				}
+				gysensor_data->value_divide = 1000;
 
                 switch (status)
                 {
@@ -2287,7 +2055,7 @@ int ist8303_linear_acceleration_operate(void* self, uint32_t command, void* buff
             }
             break;
         default:
-            MSE_ERR("sensor operate function no this parameter %d!\n", command);
+            printk(KERN_ERR "gsensor operate function no this parameter %d!\n", command);
             err = -1;
             break;
     }
@@ -2302,306 +2070,189 @@ int ist8303_linear_acceleration_operate(void* self, uint32_t command, void* buff
 
 static int ist8303_m_open_report_data(int en)
 {
-    return 0;
+	return 0;
 }
 static int ist8303_m_set_delay(u64 delay)
 {
-    //int value = (int)delay/1000/1000;
-    int value = (int)delay;
-    
-    if(value <= 20)
-    {
-        value = 20;
-    }
-    ist8303mid_data.controldata[0] = value;  // Loop Delay
+	//int value = (int)delay/1000/1000;
+	int value = (int)delay;
+	
+	if(value <= 20)
+	{
+		value = 20;
+	}
+	ist8303mid_data.controldata[0] = value;  // Loop Delay
 
-    return 0;
+	return 0;
 }
 static int ist8303_m_enable(int en)
 {
-    down_write(&ist8303mid_data.ctrllock);
-    if(en == 1)
-    {
-        if (ist8303mid_data.controldata[7] == 0)
-        {
-            IST8303_Chipset_Enable(ist830x_data.mode, 1);
-            if (ist830x_data.mode == IST8303_NORMAL_MODE)
-            {
-                schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-            }
-            atomic_set(&open_flag, 1);
-        }
-        ist8303mid_data.controldata[7] |= SENSOR_MAGNETIC;
-    }
-    else
-    {
-        ist8303mid_data.controldata[7] &= ~SENSOR_MAGNETIC;
-        if (ist8303mid_data.controldata[7] == 0)
-        {
-            atomic_set(&open_flag, 0);
-            if (ist830x_data.mode == IST8303_NORMAL_MODE)
-            {
-                cancel_delayed_work_sync(&ist_get_raw_data_work);
-            }
-            IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
-        }
-    }
-    wake_up(&open_wq);
-    up_write(&ist8303mid_data.ctrllock);
+	read_lock(&ist8303mid_data.ctrllock);
+	if(en == 1)
+	{
+		if (ist8303mid_data.controldata[7] == 0)
+		{
+			schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
+		}
+		ist8303mid_data.controldata[7] |= SENSOR_MAGNETIC;
+		atomic_set(&m_flag, 1);
+		atomic_set(&open_flag, 1);
+	}
+	else
+	{
+		ist8303mid_data.controldata[7] &= ~SENSOR_MAGNETIC;
+		atomic_set(&m_flag, 0);
+		if(atomic_read(&o_flag) == 0)
+		{
+			atomic_set(&open_flag, 0);
+		}
+		if (ist8303mid_data.controldata[7] == 0)
+		{
+			cancel_delayed_work_sync(&ist_get_raw_data_work);
+		}
+	}
+	wake_up(&open_wq);
+	read_unlock(&ist8303mid_data.ctrllock);
 
-    return 0;
+	MSE_LOG("msensor enable/disable ok!status = %d\n",atomic_read(&m_flag));//debug
+
+	return 0;
 }
 static int ist8303_o_open_report_data(int en)
 {
-    return 0;
+	return 0;
 }
 static int ist8303_o_set_delay(u64 delay)
 {
-    int value = (int)delay/1000/1000;
-   // int value = (int)delay;
+	//int value = (int)delay/1000/1000;
+	int value = (int)delay;
 
-    if(value <= 20)
-    {
-        value = 20;
-    }
-    ist8303mid_data.controldata[0] = value;  // Loop Delay
+	if(value <= 20)
+	{
+		value = 20;
+	}
+	ist8303mid_data.controldata[0] = value;  // Loop Delay
 
-    return 0;
+	return 0;
 }
 static int ist8303_o_enable(int en)
 {
-    down_write(&ist8303mid_data.ctrllock);
-    if(en == 1)
-    {
-        if (ist8303mid_data.controldata[7] == 0)
-        {
-            IST8303_Chipset_Enable(ist830x_data.mode, 1);
-            if (ist830x_data.mode == IST8303_NORMAL_MODE)
-            {
-                schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-            }
-            atomic_set(&open_flag, 1);
-        }
-        ist8303mid_data.controldata[7] |= SENSOR_ORIENTATION;
-    }
-    else
-    {
-        ist8303mid_data.controldata[7] &= ~SENSOR_ORIENTATION;
-        if (ist8303mid_data.controldata[7] == 0)
-        {
-            atomic_set(&open_flag, 0);
-            if (ist830x_data.mode == IST8303_NORMAL_MODE)
-            {
-                cancel_delayed_work_sync(&ist_get_raw_data_work);
-            }
-            IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
-        }
-    }
-    wake_up(&open_wq);
-    up_write(&ist8303mid_data.ctrllock);
+	read_lock(&ist8303mid_data.ctrllock);
+	if(en == 1)
+	{
+		if (ist8303mid_data.controldata[7] == 0)
+		{
+			schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
+		}
+		ist8303mid_data.controldata[7] |= SENSOR_ORIENTATION;
+		atomic_set(&o_flag, 1);
+		atomic_set(&open_flag, 1);
+	}
+	else
+	{
+		ist8303mid_data.controldata[7] &= ~SENSOR_ORIENTATION;
+		atomic_set(&o_flag, 0);
+		if(atomic_read(&m_flag) == 0)
+		{
+			atomic_set(&open_flag, 0);
+		}
+		if (ist8303mid_data.controldata[7] == 0)
+		{
+			cancel_delayed_work_sync(&ist_get_raw_data_work);
+		}
+	}
+	wake_up(&open_wq);
+	read_unlock(&ist8303mid_data.ctrllock);
 
-    return 0;
+	MSE_LOG("osensor enable/disable ok!status = %d\n",atomic_read(&o_flag));//debug
+	                // Do nothing
+	return 0;
 }
 
-static int ist8303_o_get_data(int* x, int* y, int* z, int* status)
+static int ist8303_o_get_data(int* x ,int* y,int* z, int* status)
 {
-    int status_temp = 0;
-
-    down_read(&ist8303mid_data.datalock);
-    *x = ist8303mid_data.yaw;
-    *y = ist8303mid_data.pitch;
-    *z = ist8303mid_data.roll;
-    status_temp = ist8303mid_data.mag_status;
-    up_read(&ist8303mid_data.datalock);
-
-    switch (status_temp)
-    {
-        case 1: case 2:
-            *status = SENSOR_STATUS_ACCURACY_HIGH;
-            break;
-        case 3:
-            *status = SENSOR_STATUS_ACCURACY_MEDIUM;
-            break;
-        case 4:
-            *status = SENSOR_STATUS_ACCURACY_LOW;
-            break;
-        default:
-            *status = SENSOR_STATUS_UNRELIABLE;
-            break;
-    }
-
-    return 0;
+	int status_temp = 0;
+	
+	read_lock(&ist8303mid_data.datalock);
+	*x = ist8303mid_data.yaw;
+	*y = ist8303mid_data.pitch;
+	*z = ist8303mid_data.roll;
+	status_temp = ist8303mid_data.mag_status;
+	read_unlock(&ist8303mid_data.datalock); 
+	
+	switch (status_temp)
+	{
+		case 1: case 2:
+			*status = SENSOR_STATUS_ACCURACY_HIGH;
+			break;
+		case 3:
+			*status = SENSOR_STATUS_ACCURACY_MEDIUM;
+			break;
+		case 4:
+			*status = SENSOR_STATUS_ACCURACY_LOW;
+			break;
+		default:		
+			*status = SENSOR_STATUS_UNRELIABLE;
+			break;	  
+	}		
+	return 0;
 }
-static int ist8303_m_get_data(int* x, int* y, int* z, int* status)
+
+static int ist8303_m_get_data(int* x ,int* y,int* z, int* status)
 {
-    int status_temp = 0;
+	int status_temp = 0;
+	
+	read_lock(&ist8303mid_data.datalock);
+	*x = ist8303mid_data.nmx;
+	*y = ist8303mid_data.nmy;
+	*z = ist8303mid_data.nmz;
+	status_temp = ist8303mid_data.mag_status;
+	read_unlock(&ist8303mid_data.datalock); 
+	
+	*x = *x * CONVERT_M;
+	*y = *y * CONVERT_M;
+	*z = *z * CONVERT_M;
+		
+	switch (status_temp)
+	{
+		case 1: case 2:
+			*status = SENSOR_STATUS_ACCURACY_HIGH;
+			break;
+		case 3:
+			*status = SENSOR_STATUS_ACCURACY_MEDIUM;
+			break;
+		case 4:
+			*status = SENSOR_STATUS_ACCURACY_LOW;
+			break;
+		default:		
+			*status = SENSOR_STATUS_UNRELIABLE;
+			break;	  
+	}
 
-    down_read(&ist8303mid_data.datalock);
-    *x = ist8303mid_data.nmx;
-    *y = ist8303mid_data.nmy;
-    *z = ist8303mid_data.nmz;
-    status_temp = ist8303mid_data.mag_status;
-    up_read(&ist8303mid_data.datalock);
-
-    *x = *x * CONVERT_M;
-    *y = *y * CONVERT_M;
-    *z = *z * CONVERT_M;
-
-    switch (status_temp)
-    {
-        case 1: case 2:
-            *status = SENSOR_STATUS_ACCURACY_HIGH;
-            break;
-        case 3:
-            *status = SENSOR_STATUS_ACCURACY_MEDIUM;
-            break;
-        case 4:
-            *status = SENSOR_STATUS_ACCURACY_LOW;
-            break;
-        default:
-            *status = SENSOR_STATUS_UNRELIABLE;
-            break;
-    }
-
-    return 0;
+	return 0;
 }
 
 #endif
 
-#ifndef IST8303_M_NEW_ARCH
-#ifdef ID_MAGNETIC_UNCALIBRATED
-int ist8303_uncalibrated_operate(void* self, uint32_t command, void* buff_in, int size_in,
-        void* buff_out, int size_out, int* actualout)
-{
-    int err = 0;
-    int value, status;
-    hwm_sensor_data* msensor_data;
-    
-    switch (command)
-    {
-        case SENSOR_DELAY:
-            if((buff_in == NULL) || (size_in < sizeof(int)))
-            {
-                MSE_ERR("Set delay parameter error!\n");
-                err = -EINVAL;
-            }
-            else
-            {
-                value = *(int *)buff_in;
-                if(value <= 20)
-                {
-                    value = 20;
-                }
-                ist8303mid_data.controldata[0] = value;  // Loop Delay
-            }   
-            break;
-
-        case SENSOR_ENABLE:
-            if((buff_in == NULL) || (size_in < sizeof(int)))
-            {
-                MSE_ERR("Enable sensor parameter error!\n");
-                err = -EINVAL;
-            }
-            else
-            {
-                value = *(int *)buff_in;
-                down_write(&ist8303mid_data.ctrllock);
-                if (value == 1)
-                {
-                    if (ist8303mid_data.controldata[7] == 0)
-                    {
-                        IST8303_Chipset_Enable(ist830x_data.mode, 1);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
-                        }
-                        atomic_set(&open_flag, 1);
-                    }
-                    ist8303mid_data.controldata[7] |= SENSOR_MAGNETIC_UNCALIBRATED;
-                }
-                else
-                {
-                    ist8303mid_data.controldata[7] &= ~SENSOR_MAGNETIC_UNCALIBRATED;
-                    if (ist8303mid_data.controldata[7] == 0)
-                    {
-                        atomic_set(&open_flag, 0);
-                        if (ist830x_data.mode == IST8303_NORMAL_MODE)
-                        {
-                            cancel_delayed_work_sync(&ist_get_raw_data_work);
-                        }
-                        IST8303_Chipset_Enable(IST8303_NORMAL_MODE, 0);
-                    }
-                }
-                wake_up(&open_wq);
-                up_write(&ist8303mid_data.ctrllock);
-            }
-            break;
-
-        case SENSOR_GET_DATA:
-            if((buff_out == NULL) || (size_out< sizeof(hwm_sensor_data)))
-            {
-                MSE_ERR("get sensor data parameter error!\n");
-                err = -EINVAL;
-            }
-            else
-            {
-                msensor_data = (hwm_sensor_data *)buff_out;
-                down_read(&ist8303mid_data.datalock);
-                msensor_data->values[0] = ist8303mid_data.nmx_uncali;
-                msensor_data->values[1] = ist8303mid_data.nmy_uncali;
-                msensor_data->values[2] = ist8303mid_data.nmz_uncali;
-                status = ist8303mid_data.mag_status_uncali;
-                up_read(&ist8303mid_data.datalock); 
-                
-                msensor_data->values[0] = msensor_data->values[0] * CONVERT_M;
-                msensor_data->values[1] = msensor_data->values[1] * CONVERT_M;
-                msensor_data->values[2] = msensor_data->values[2] * CONVERT_M;
-                msensor_data->value_divide = 100;
-
-                switch (status)
-                {
-                    case 1: case 2:
-                        msensor_data->status = SENSOR_STATUS_ACCURACY_HIGH;
-                        break;
-                    case 3:
-                        msensor_data->status = SENSOR_STATUS_ACCURACY_MEDIUM;
-                        break;
-                    case 4:
-                        msensor_data->status = SENSOR_STATUS_ACCURACY_LOW;
-                        break;
-                    default:        
-                        msensor_data->status = SENSOR_STATUS_UNRELIABLE;
-                        break;    
-                }
-                
-            }
-            break;
-        default:
-            MSE_ERR("msensor_uncali operate function no this parameter %d!\n", command);
-            err = -1;
-            break;
-    }
-    
-    return err;
-}
-#endif
-#endif
 /*----------------------------------------------------------------------------*/
 //#ifndef   CONFIG_HAS_EARLYSUSPEND
 /*----------------------------------------------------------------------------*/
 static int ist8303_suspend(struct i2c_client *client, pm_message_t msg) 
 {
+    int err;
     struct ist8303_i2c_data *obj = i2c_get_clientdata(client);
     MSE_FUN();
 
-    if (msg.event == PM_EVENT_SUSPEND)
+    cancel_delayed_work_sync(&ist_get_raw_data_work);    
+
+    if(msg.event == PM_EVENT_SUSPEND)
     {   
-        if (ist830x_data.mode == IST8303_NORMAL_MODE)
+        if((err = hwmsen_write_byte(client, IST8303_REG_CNTRL1, 0x00))!=0)
         {
-            cancel_delayed_work_sync(&ist_get_raw_data_work);    
-            
-            IST8303_Chipset_Enable(ist830x_data.mode, 0);
+            MSE_ERR("write power control fail!!\n");
+            return err;
         }
+
         ist8303_power(obj->hw, 0);
     }
     return 0;
@@ -2614,16 +2265,17 @@ static int ist8303_resume(struct i2c_client *client)
     MSE_FUN();
 
     ist8303_power(obj->hw, 1);
-    if (ist830x_data.mode == IST8303_NORMAL_MODE)
+    if((err = IST8303_Chipset_Init(IST8303_FORCE_MODE))!=0)
     {
-        if ((err = IST8303_Chipset_Enable(ist830x_data.mode, 1)) !=0 )
-        {
-            MSE_ERR("initialize client fail!!\n");
-            return err;        
-        }
-        if(atomic_read(&open_flag) != 0)
-        	schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
+        MSE_ERR("initialize client fail!!\n");
+        return err;        
     }
+	
+	if (ist8303mid_data.controldata[7] != 0)
+    {
+    	schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
+    }
+    //schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
 
     return 0;
 }
@@ -2633,22 +2285,23 @@ static int ist8303_resume(struct i2c_client *client)
 static void ist8303_early_suspend(struct early_suspend *h) 
 {
     struct ist8303_i2c_data *obj = container_of(h, struct ist8303_i2c_data, early_drv);   
+    int err;
     MSE_FUN();    
 
-    if (NULL == obj)
+    if(NULL == obj)
     {
         MSE_ERR("null pointer!!\n");
         return;
     }
 
-    if (ist830x_data.mode == IST8303_NORMAL_MODE)
+	cancel_delayed_work_sync(&ist_get_raw_data_work);  
+	
+    if((err = hwmsen_write_byte(obj->client, IST8303_REG_CNTRL1, 0x00)))
     {
-        cancel_delayed_work_sync(&ist_get_raw_data_work);    
-        
-        IST8303_Chipset_Enable(ist830x_data.mode, 0);
-    }
-    
-    ist8303_power(obj->hw, 0);
+        MSE_ERR("write power control fail!!\n");
+        return;
+    }        
+	ist8303_power(obj->hw, 0);
 }
 /*----------------------------------------------------------------------------*/
 static void ist8303_late_resume(struct early_suspend *h)
@@ -2664,15 +2317,15 @@ static void ist8303_late_resume(struct early_suspend *h)
     }
 
     ist8303_power(obj->hw, 1);
-    if (ist830x_data.mode == IST8303_NORMAL_MODE)
+    if((err = IST8303_Chipset_Init(IST8303_FORCE_MODE)))
     {
-        if ((err = IST8303_Chipset_Enable(ist830x_data.mode, 1)) !=0 )
-        {
-            MSE_ERR("initialize client fail!!\n");
-            return;        
-        }
-        if(atomic_read(&open_flag) != 0)
-        	schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(ODR_DELAY_TIME_MS));
+        MSE_ERR("initialize client fail!!\n");
+        return;        
+    }    
+
+	if (ist8303mid_data.controldata[7] != 0)
+    {
+    	schedule_delayed_work(&ist_get_raw_data_work, msecs_to_jiffies(50));
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -2693,13 +2346,12 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     struct ist8303_i2c_data *data;
     int err = 0;
 #ifdef IST8303_M_NEW_ARCH
-//    struct mag_drv_obj sobj_m, sobj_o, sobj_uncali_m;
-    struct mag_control_path ctl={0};
-    struct mag_data_path mag_data={0}; 
+	struct mag_control_path ctl={0};
+	struct mag_data_path mag_data={0}; 
 #else
-    struct hwmsen_object sobj_m, sobj_o, sobj_uncali_m;
+	struct hwmsen_object sobj_m, sobj_o;
 #endif
-    
+
 #ifdef SOFT_GYRO
     struct hwmsen_object sobj_gy, sobj_rv;
 #ifdef REPLACE_ANDROID_VIRTUAL_SENSOR
@@ -2718,7 +2370,7 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     if((err = hwmsen_get_convert(data->hw->direction, &data->cvt)))
     {
         MSE_ERR("invalid direction: %d\n", data->hw->direction);
-        goto exit;
+        goto exit_kfree;
     }
     
     atomic_set(&data->layout, data->hw->direction);
@@ -2733,25 +2385,29 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     
     ist8303_i2c_client = new_client;
 
-    //write_lock(&ist830x_data.lock);
-    ist830x_data.mode = IST8303_FORCE_MODE;//IST8303_FORCE_MODE, IST8303_NORMAL_MODE
-    //write_unlock(&ist830x_data.lock);
+    //ist8303_i2c_client->addr = (ist8303_i2c_client->addr & I2C_MASK_FLAG )|(I2C_ENEXT_FLAG);
+    //memset(ist830x_msensor_raw_data, 0, sizeof(ist830x_msensor_raw_data));
 
+    write_lock(&ist830x_data.lock);
+    ist830x_data.mode = IST8303_NORMAL_MODE;
+    write_unlock(&ist830x_data.lock);
+
+    mutex_init(&sensor_data_mutex);
     INIT_DELAYED_WORK(&ist_get_raw_data_work, ist830x_prepare_raw_data);
 
-    if((err = IST8303_Chipset_Init(ist830x_data.mode)))
+    if((err = IST8303_Chipset_Init(IST8303_NORMAL_MODE)))
     {
-        printk("ist8303 probe fail \n");
-		goto exit_kfree;
+        goto exit_init_failed;
     }
 
     /* Register sysfs attribute */
 #ifdef IST8303_M_NEW_ARCH
+
     if((err = ist8303_create_attr(&(ist8303_init_info.platform_diver_addr->driver))))
 #else
-    if((err = ist8303_create_attr(&ist_sensor_driver.driver)))
+	if((err = ist8303_create_attr(&ist_sensor_driver.driver)))
 #endif
-    {
+	{
         MSE_ERR("create attribute err = %d\n", err);
         goto exit_sysfs_create_group_failed;
     }
@@ -2760,66 +2416,92 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     {
         MSE_ERR("ist8303_device register failed\n");
         goto exit_misc_device_register_failed;
-    }    
-
-
-    
-#ifndef IST8303_M_NEW_ARCH   
+    } 
+	
+#ifndef IST8303_M_NEW_ARCH
     sobj_m.self = data;
     sobj_m.polling = 1;
+#endif
 
-    sobj_m.sensor_operate = ist8303_operate;
-    if((err = hwmsen_attach(ID_MAGNETIC, &sobj_m)))
+#ifdef IST8303_M_NEW_ARCH	
+#else
+	sobj_m.sensor_operate = ist8303_operate;
+	if(err = hwmsen_attach(ID_MAGNETIC, &sobj_m))
+#endif
     {
         MSE_ERR("attach fail = %d\n", err);
         goto exit_kfree;
     }
-    
+
+#ifndef IST8303_M_NEW_ARCH    
     sobj_o.self = data;
     sobj_o.polling = 1;
-    sobj_o.sensor_operate = ist8303_orientation_operate;
-    if((err = hwmsen_attach(ID_ORIENTATION, &sobj_o)))
+#endif
+
+#ifdef IST8303_M_NEW_ARCH
+#else
+	sobj_o.sensor_operate = ist8303_orientation_operate;
+	if(err = hwmsen_attach(ID_ORIENTATION, &sobj_o))
+#endif
     {
         MSE_ERR("attach fail = %d\n", err);
         goto exit_kfree;
     }
-    
-#else
-    ctl.m_enable = ist8303_m_enable;
-    ctl.m_set_delay  = ist8303_m_set_delay;
-    ctl.m_open_report_data = ist8303_m_open_report_data;
-    ctl.o_enable = ist8303_o_enable;
-    ctl.o_set_delay  = ist8303_o_set_delay;
-    ctl.o_open_report_data = ist8303_o_open_report_data;
-    ctl.is_report_input_direct = false;
+
+#ifdef IST8303_M_NEW_ARCH
+
+	ctl.m_enable = ist8303_m_enable;
+	ctl.m_set_delay  = ist8303_m_set_delay;
+	ctl.m_open_report_data = ist8303_m_open_report_data;
+	ctl.o_enable = ist8303_o_enable;
+	ctl.o_set_delay  = ist8303_o_set_delay;
+	ctl.o_open_report_data = ist8303_o_open_report_data;
+	ctl.is_report_input_direct = false;
+
 	ctl.is_support_batch = data->hw->is_batch_supported;
-    
-    err = mag_register_control_path(&ctl);
-    if(err)
-    {
-        MAG_ERR("register mag control path err\n");
-        goto exit_kfree;
-    }
+	
+	err = mag_register_control_path(&ctl);
+	if(err)
+	{
+	 	MAG_ERR("register mag control path err\n");
+		goto exit_kfree;
+	}
 
-    mag_data.div_m = 100;
-    mag_data.div_o = ORIENTATION_ACCURACY_RATE;
-
-    mag_data.get_data_o = ist8303_o_get_data;
-    mag_data.get_data_m = ist8303_m_get_data;
-
-    err = mag_register_data_path(&mag_data);
-    if(err)
-    {
-        MAG_ERR("register data control path err\n");
-        goto exit_kfree;
-    }
+	mag_data.div_m = 100;
+	mag_data.div_o = ORIENTATION_ACCURACY_RATE;
+	mag_data.get_data_o = ist8303_o_get_data;
+	mag_data.get_data_m = ist8303_m_get_data;
+	
+	err = mag_register_data_path(&mag_data);
+	if(err)
+	{
+	 	MAG_ERR("register data control path err\n");
+		goto exit_kfree;
+	}
+/*--------------------------------------------------------------*/
+#if 0
+	err = batch_register_support_info(ID_MAGNETIC,data->hw->is_batch_supported, 0);
+	if(err)
+	{
+		MAG_ERR("%s register mag batch support err = %d\n", __func__, err);
+		goto exit_kfree;
+	}
+	err = batch_register_support_info(ID_ORIENTATION,data->hw->is_batch_supported, 0);
+	if(err)
+	{
+		MAG_ERR("%s register ori batch support err = %d\n", __func__, err);
+		goto exit_kfree;
+	}
 #endif
-    
+/*--------------------------------------------------------------*/
+
+#endif
+	
 #ifdef SOFT_GYRO  
     sobj_gy.self = data;
     sobj_gy.polling = 1;
     sobj_gy.sensor_operate = ist8303_gyro_operate;
-    if((err = hwmsen_attach(ID_GYROSCOPE, &sobj_gy)))
+    if(err = hwmsen_attach(ID_GYROSCOPE, &sobj_gy))
     {
         printk(KERN_ERR "attach fail = %d\n", err);
         goto exit_kfree;
@@ -2828,7 +2510,7 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     sobj_rv.self = data;
     sobj_rv.polling = 1;
     sobj_rv.sensor_operate = ist8303_rotation_vector_operate;
-    if((err = hwmsen_attach(ID_ROTATION_VECTOR, &sobj_rv)))
+    if(err = hwmsen_attach(ID_ROTATION_VECTOR, &sobj_rv))
     {
         printk(KERN_ERR "attach fail = %d\n", err);
         goto exit_kfree;
@@ -2838,7 +2520,7 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     sobj_gra.self = data;
     sobj_gra.polling = 1;
     sobj_gra.sensor_operate = ist8303_gravity_operate;
-    if((err = hwmsen_attach(ID_GRAVITY, &sobj_gra)))
+    if(err = hwmsen_attach(ID_GRAVITY, &sobj_gra))
     {
         printk(KERN_ERR "attach fail = %d\n", err);
         goto exit_kfree;
@@ -2847,26 +2529,14 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     sobj_la.self = data;
     sobj_la.polling = 1;
     sobj_la.sensor_operate = ist8303_linear_acceleration_operate;
-    if((err = hwmsen_attach(ID_LINEAR_ACCELERATION, &sobj_la)))
+    if(err = hwmsen_attach(ID_LINEAR_ACCELERATION, &sobj_la))
     {
         printk(KERN_ERR "attach fail = %d\n", err);
         goto exit_kfree;
     }
 #endif //#ifdef REPLACE_ANDROID_VIRTUAL_SENSOR
-#endif //#ifdef SOFT_GYRO  
-
-#ifndef IST8303_M_NEW_ARCH
-#ifdef ID_MAGNETIC_UNCALIBRATED
-    sobj_uncali_m.self = data;
-    sobj_uncali_m.polling = 1;
-    sobj_uncali_m.sensor_operate = ist8303_uncalibrated_operate;
-    if((err = hwmsen_attach(ID_MAGNETIC_UNCALIBRATED, &sobj_uncali_m)))
-    {
-        MSE_ERR("attach fail = %d\n", err);
-    }
-#endif //#ifdef ID_MAGNETIC_UNCALIBRATED
-#endif //#ifndef IST8303_M_NEW_ARCH
-
+#endif
+    
 #if CONFIG_HAS_EARLYSUSPEND
     data->early_drv.level    = EARLY_SUSPEND_LEVEL_DISABLE_FB - 1,
     data->early_drv.suspend  = ist8303_early_suspend,
@@ -2874,7 +2544,8 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     register_early_suspend(&data->early_drv);
 #endif
 #ifdef IST8303_M_NEW_ARCH
-    ist8303_init_flag = 0;
+
+	ist8303_init_flag = 1;
 #endif
     MSE_LOG("%s: OK\n", __func__);
     return 0;
@@ -2885,9 +2556,6 @@ static int ist8303_i2c_probe(struct i2c_client *client, const struct i2c_device_
     exit_kfree:
     kfree(data);
     exit:
-#ifdef IST8303_M_NEW_ARCH
-    ist8303_init_flag = -1;
-#endif
     MSE_ERR("%s: err = %d\n", __func__, err);
     return err;
 }
@@ -2896,7 +2564,7 @@ static int ist8303_i2c_remove(struct i2c_client *client)
 {
     int err;    
 #ifdef IST8303_M_NEW_ARCH
-    if((err = ist8303_delete_attr(&(ist8303_init_info.platform_diver_addr->driver))))
+	if((err = ist8303_delete_attr(&(ist8303_init_info.platform_diver_addr->driver))))
 #else
     if((err = ist8303_delete_attr(&ist_sensor_driver.driver)))
 #endif
@@ -2910,55 +2578,17 @@ static int ist8303_i2c_remove(struct i2c_client *client)
     misc_deregister(&ist8303_device);    
     return 0;
 }
-
 /*----------------------------------------------------------------------------*/
 #ifdef IST8303_M_NEW_ARCH
-static int ist_gpio_rst_config(void)
-{
-#if !defined(GPIO_COMPASS_RST_PIN)
-#define GPIO_COMPASS_RST_PIN (0x80000000 | 168)
-#else
-#error "leechee added to make sure GPIO_COMPASS_RST_PIN is defined corrected!"
-#endif
-    int ret = 0;    
-#ifdef GPIO_COMPASS_RST_PIN
-    printk("akm8963 reset pin is used for this project\n");
-    ret = mt_set_gpio_mode(GPIO_COMPASS_RST_PIN, GPIO_MODE_00);
-    if(ret < 0)
-    {
-        printk(KERN_ERR "set gpio mode error\n");
-    }
-    ret = mt_set_gpio_dir(GPIO_COMPASS_RST_PIN, GPIO_DIR_OUT);
-    if(ret < 0)
-    {
-        printk(KERN_ERR "set gpio dir error\n");
-    }
-    ret = mt_set_gpio_out(GPIO_COMPASS_RST_PIN, GPIO_OUT_ZERO);
-    if(ret < 0)
-    {
-        printk(KERN_ERR "set gpio out value error\n");
-    }
-    mdelay(15);
-    ret = mt_set_gpio_out(GPIO_COMPASS_RST_PIN, 1);
-    if(ret < 0)
-    {
-        printk(KERN_ERR "set gpio out value error\n");
-    }
-#endif
-    return ret;
-}
 
 static int ist8303_local_init(void)
 {
-    struct mag_hw *hw = get_cust_mag_hw();
+	struct mag_hw *hw = get_cust_mag_hw();
 
-    ist8303_power(hw, 1);  
-    
-    ist_gpio_rst_config();
-    
-    init_rwsem(&ist8303mid_data.ctrllock);
-    init_rwsem(&ist8303mid_data.datalock);
-    init_rwsem(&ist830x_data.lock);
+    ist8303_power(hw, 1);    
+    rwlock_init(&ist8303mid_data.ctrllock);
+    rwlock_init(&ist8303mid_data.datalock);
+    rwlock_init(&ist830x_data.lock);
     memset(&ist8303mid_data.controldata[0], 0, sizeof(int)*10);    
     ist8303mid_data.controldata[0] =    20;  // Loop Delay
     ist8303mid_data.controldata[1] =     0;  // Run   
@@ -2978,38 +2608,39 @@ static int ist8303_local_init(void)
         MSE_ERR("add driver error\n");
         return -1;
     }
-    
-    if(-1 == ist8303_init_flag)
-    {
-        MSE_ERR("%s failed!\n",__func__);
-       return -1;
-    }
+	
+	if(-1 == ist8303_init_flag)
+	{
+		MSE_ERR("%s failed!\n",__func__);
+	   return -1;
+	}
     return 0;
 }
 
 static int ist8303_remove(void)
 {
-    struct mag_hw *hw = get_cust_mag_hw();
-    
-    MSE_FUN(f);  
-    ist8303_power(hw, 0);   
-    atomic_set(&dev_open_count, 0); 
-    i2c_del_driver(&ist8303_i2c_driver);
+	struct mag_hw *hw = get_cust_mag_hw();
+	
+	MSE_FUN(f);	 
+	ist8303_power(hw, 0);	
+	atomic_set(&dev_open_count, 0);	
+	i2c_del_driver(&ist8303_i2c_driver);
 
-    return 0;
+	return 0;
 }
 #endif
 
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------*/
 #ifndef IST8303_M_NEW_ARCH
+
 static int ist_probe(struct platform_device *pdev) 
 {
     struct mag_hw *hw = get_cust_mag_hw();
 
     ist8303_power(hw, 1);    
-    init_rwsem(&ist8303mid_data.ctrllock);
-    init_rwsem(&ist8303mid_data.datalock);
-    init_rwsem(&ist830x_data.lock);
+    rwlock_init(&ist8303mid_data.ctrllock);
+    rwlock_init(&ist8303mid_data.datalock);
+    rwlock_init(&ist830x_data.lock);
     memset(&ist8303mid_data.controldata[0], 0, sizeof(int)*10);    
     ist8303mid_data.controldata[0] =    20;  // Loop Delay
     ist8303mid_data.controldata[1] =     0;  // Run   
@@ -3043,37 +2674,28 @@ static int ist_remove(struct platform_device *pdev)
     return 0;
 }
 /*----------------------------------------------------------------------------*/
-#ifdef CONFIG_OF
-static const struct of_device_id msensor_of_match[] = {
-	{ .compatible = "mediatek,msensor", },
-	{},
-};
-#endif
+
+
 static struct platform_driver ist_sensor_driver = {
     .probe      = ist_probe,
     .remove     = ist_remove,    
     .driver     = {
         .name  = "msensor",
 //      .owner = THIS_MODULE,
-#ifdef CONFIG_OF
-		.of_match_table = msensor_of_match,
-#endif
-
     }
 };
 #endif
 
+
 /*----------------------------------------------------------------------------*/
 static int __init ist8303_init(void)
 {
-    struct mag_hw *hw;
-    
-    hw = get_cust_mag_hw();
-
+    MSE_FUN();
+    struct mag_hw *hw = get_cust_mag_hw();
     i2c_register_board_info(hw->i2c_num, &i2c_ist8303, 1);
-    
+	
 #ifdef IST8303_M_NEW_ARCH
-    mag_driver_add(&ist8303_init_info);
+	mag_driver_add(&ist8303_init_info);
 #else
     if(platform_driver_register(&ist_sensor_driver))
     {
@@ -3081,7 +2703,7 @@ static int __init ist8303_init(void)
         return -ENODEV;
     }
 #endif
-        
+		
     return 0;    
 }
 /*----------------------------------------------------------------------------*/

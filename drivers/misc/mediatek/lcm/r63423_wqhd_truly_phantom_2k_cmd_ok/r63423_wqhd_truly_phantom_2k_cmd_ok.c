@@ -23,7 +23,7 @@
 #ifdef BUILD_LK
 #define LCD_DEBUG(fmt)  dprintf(0,fmt)
 #else
-#define LCD_DEBUG(fmt)  printk(fmt)
+#define LCD_DEBUG(fmt)  pr_debug(fmt)
 #endif
 //static unsigned char lcd_id_pins_value = 0xFF;
 static const unsigned char LCD_MODULE_ID = 0x01; //  haobing modified 2013.07.11
@@ -125,7 +125,6 @@ static struct i2c_driver tps65132_iic_driver = {
     .id_table	= tps65132_id,
     .probe		= tps65132_probe,
     .remove		= tps65132_remove,
-    //.detect		= mt6605_detect,
     .driver		= {
     .owner	= THIS_MODULE,
     .name	= "tps65132",
@@ -485,14 +484,14 @@ static void lcm_init_power(void)
 	else
 	dprintf(0, "[LK]r63423----tps6132----cmd=%0x--i2c write success----\n",cmd);			
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6331_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 	MDELAY(500);
 	cmd=0x01;
@@ -506,9 +505,9 @@ static void lcm_init_power(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 #endif
 
@@ -545,14 +544,14 @@ static void lcm_resume_power(void)
 	else
 	dprintf(0, "[LK]r63423----tps6132----cmd=%0x--i2c write success----\n",cmd);			
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6331_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 	MDELAY(500);
 	cmd=0x01;
@@ -566,9 +565,9 @@ static void lcm_resume_power(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63423----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 #endif
 
@@ -585,9 +584,9 @@ static void lcm_suspend_power(void)
 	mt_set_gpio_out(GPIO_LCD_BIAS_ENP_PIN, GPIO_OUT_ZERO);
 #ifdef BUILD_LK
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerDown(MT6331_POWER_LDO_VGP1, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 }
 
@@ -680,7 +679,6 @@ static unsigned int lcm_compare_id(void)
 
 	unsigned char buffer[5];
 	unsigned int array[16];  
-	int i;
 	unsigned int lcd_id = 0;
 	SET_RESET_PIN(1);
     MDELAY(10);
@@ -698,7 +696,7 @@ static unsigned int lcm_compare_id(void)
 #ifdef BUILD_LK
     dprintf(0, "%s, LK r63423 debug: r63423 id = 0x%08x\n", __func__, lcd_id);
 #else
-    printk("%s, kernel r63423 horse debug: r63423 id = 0x%08x\n", __func__, lcd_id);
+    pr_debug("%s, kernel r63423 horse debug: r63423 id = 0x%08x\n", __func__, lcd_id);
 #endif
 
     if(lcd_id == LCM_ID_R63423)
@@ -713,7 +711,7 @@ static void lcm_setbacklight_cmdq(void* handle,unsigned int level)
 #ifdef BUILD_LK
 	dprintf(0,"%s,lk R63423 backlight: level = %d\n", __func__, level);
 #else
-	printk("%s, kernel R63423 backlight: level = %d\n", __func__, level);
+	pr_debug("%s, kernel R63423 backlight: level = %d\n", __func__, level);
 #endif
 	// Refresh value of backlight level.
 	

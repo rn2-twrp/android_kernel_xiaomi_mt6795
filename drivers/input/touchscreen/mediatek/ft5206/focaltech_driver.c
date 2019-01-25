@@ -13,8 +13,6 @@
 
 #include "tpd.h"
 
-#include "tpd_custom_ft5206.h"
-#include "focaltech_ex_fun.h"
 #include <linux/netdevice.h>
 #ifdef FTS_CTL_IIC
 #include "focaltech_ctl.h"
@@ -46,14 +44,16 @@ extern int tpd_v_magnify_y;
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/delay.h>
+#include "tpd_custom_ft5206.h"
+#include "focaltech_ex_fun.h"
 
 u8 *I2CDMABuf_va = NULL;
 dma_addr_t I2CDMABuf_pa = 0;
 
 #ifdef TPD_PROXIMITY
-#define APS_ERR(fmt,arg...)           	printk("<<proximity>> "fmt"\n",##arg)
-#define TPD_PROXIMITY_DEBUG(fmt,arg...) printk("<<proximity>> "fmt"\n",##arg)
-#define TPD_PROXIMITY_DMESG(fmt,arg...) printk("<<proximity>> "fmt"\n",##arg)
+#define APS_ERR(fmt, arg...)				pr_warn("<<proximity>> "fmt"\n", ##arg)
+#define TPD_PROXIMITY_DEBUG(fmt, arg...)	pr_debug("<<proximity>> "fmt"\n", ##arg)
+#define TPD_PROXIMITY_DMESG(fmt, arg...)	pr_warn("<<proximity>> "fmt"\n", ##arg)
 
 static u8 tpd_proximity_flag 			= 0;
 static u8 tpd_proximity_flag_one 		= 0; //add for tpd_proximity by wangdongfang
@@ -61,17 +61,17 @@ static u8 tpd_proximity_detect 		= 1;//0-->close ; 1--> far away
 #endif
 
 extern struct tpd_device *tpd;
- 
+
 struct i2c_client *i2c_client = NULL;
 struct task_struct *thread = NULL;
- 
+
 #ifdef VELOCITY_CUSTOM
 extern int tpd_v_magnify_x;
 extern int tpd_v_magnify_y;
 #endif
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 static DEFINE_MUTEX(i2c_access);
- 
+
  
 static void tpd_eint_interrupt_handler(void);
  
@@ -168,13 +168,13 @@ static int tpd_enable_ps(int enable)
 	int ret = -1;
 
 	i2c_smbus_read_i2c_block_data(i2c_client, 0xB0, 1, &state);
-	printk("[proxi_5206]read: 999 0xb0's value is 0x%02X\n", state);
+	pr_warn("[proxi_5206]read: 999 0xb0's value is 0x%02X\n", state);
 	if (enable){
 		state |= 0x01;
 		tpd_proximity_flag = 1;
-		TPD_PROXIMITY_DEBUG("[proxi_5206]ps function is on\n");	
+		TPD_PROXIMITY_DEBUG("[proxi_5206]ps function is on\n");
 	}else{
-		state &= 0x00;	
+		state &= 0x00;
 		tpd_proximity_flag = 0;
 		TPD_PROXIMITY_DEBUG("[proxi_5206]ps function is off\n");
 	}
@@ -287,18 +287,18 @@ static int tpd_i2c_read_bytes(struct i2c_client *client, u16 addr, u8 *rxbuf, in
 			 .timing = 300
 		 },
 	 };
- 
+
 	 if (rxbuf == NULL)
 		 return -1;
- 
-	 printk("i2c_read_bytes to device %02X address %04X len %d\n", client->addr, addr, len);
- 
+
+	 pr_warn("i2c_read_bytes to device %02X address %04X len %d\n", client->addr, addr, len);
+
 	 while (left > 0)
 	 {
 		 buffer[0] = (addr + offset) & 0xFF;
- 
+
 		 msg[1].buf = &rxbuf[offset];
- 
+
 		 if (left > 8)
 		 {
 			 msg[1].len = 8;
@@ -310,14 +310,14 @@ static int tpd_i2c_read_bytes(struct i2c_client *client, u16 addr, u8 *rxbuf, in
 			 msg[1].len = left;
 			 left = 0;
 		 }
- 
+
 		 if (i2c_transfer(client->adapter, &msg[0], 2) != 2)
 		 {
-			 printk("I2C read 0x%X length=%d failed\n", addr + offset, len);
+			 pr_warn("I2C read 0x%X length=%d failed\n", addr + offset, len);
 			 return -1;
 		 }
 	 }
- 
+
 	 return 0;
 }
 
@@ -374,34 +374,36 @@ static int tpd_i2c_read_bytes(struct i2c_client *client, u16 addr, u8 *rxbuf, in
 		 //cinfo->x[i] =  cinfo->x[i] * 480 >> 11; //calibra
 	 
 		 /*get the Y coordinate, 2 bytes*/
-		 
+
 		 high_byte = data[3+6*i+2];
 		 high_byte <<= 8;
 		 high_byte &= 0x0f00;
 		 low_byte = data[3+6*i+3];
 		 cinfo->y[i] = high_byte |low_byte;
- 
+
 		  //cinfo->y[i]=  cinfo->y[i] * 800 >> 11;
 	 }
-	 //TPD_DEBUG(" cinfo->x[0] = %d, cinfo->y[0] = %d, cinfo->id[0] = %d\n", cinfo->x[0], cinfo->y[0], cinfo->id[0]);	 
-	 //TPD_DEBUG(" cinfo->x[1] = %d, cinfo->y[1] = %d, cinfo->p[1] = %d\n", cinfo->x[1], cinfo->y[1], cinfo->p[1]); 	 
-	 //TPD_DEBUG(" cinfo->x[2]= %d, cinfo->y[2]= %d, cinfo->p[2] = %d\n", cinfo->x[2], cinfo->y[2], cinfo->p[2]);	 
-		   
+	/* TPD_DEBUG(" cinfo->x[0] = %d, cinfo->y[0] = %d, cinfo->id[0] = %d\n",
+			cinfo->x[0], cinfo->y[0], cinfo->id[0]); */
+	/* TPD_DEBUG(" cinfo->x[1] = %d, cinfo->y[1] = %d, cinfo->p[1] = %d\n",
+			cinfo->x[1], cinfo->y[1], cinfo->p[1]); */
+	/* TPD_DEBUG(" cinfo->x[2]= %d, cinfo->y[2]= %d, cinfo->p[2] = %d\n", cinfo->x[2], cinfo->y[2], cinfo->p[2]); */
+
 	 return true;
  };
  #ifdef TPD_AUTO_UPGRADE
  static int tpd_ft_update_fw(void *unused)
 {
-	mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM); 
+	mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
 	msleep(3000);
-	printk("********************Enter CTP Auto Upgrade********************\n");
+	pr_warn("********************Enter CTP Auto Upgrade********************\n");
  	fts_ctpm_auto_upgrade(i2c_client);
-	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM); 
+	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
 	return 0;
 }
 #endif
  static int touch_event_handler(void *unused)
- { 
+{
    	struct touch_info cinfo, pinfo;
 	int i=0, point_num=0;
 	struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
@@ -754,24 +756,24 @@ static int tpd_local_init(void)
 	.tpd_have_button = 1,
 #else
 	.tpd_have_button = 0,
-#endif		
+#endif
  };
  /* called when loaded into kernel */
 static int __init tpd_driver_init(void) {
-	printk("MediaTek FTS touch panel driver init\n");
+	pr_warn("MediaTek FTS touch panel driver init\n");
 	i2c_register_board_info(TPD_I2C_NUMBER, &ft5206_i2c_tpd, 1);
 	if(tpd_driver_add(&tpd_device_driver) < 0)
 		TPD_DMESG("add FTS driver failed\n");
 	 return 0;
  }
- 
+
  /* should never be called */
 static void __exit tpd_driver_exit(void) {
 	TPD_DMESG("MediaTek FTS touch panel driver exit\n");
 	//input_unregister_device(tpd->dev);
 	tpd_driver_remove(&tpd_device_driver);
 }
- 
+
 module_init(tpd_driver_init);
 module_exit(tpd_driver_exit);
 

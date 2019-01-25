@@ -103,11 +103,11 @@ static int mtk_uldlloopback_open(struct snd_pcm_substream *substream)
 
     printk("%s \n", __func__);
     AudDrv_Clk_On();
-    AudDrv_ADC_Clk_On();	
+    AudDrv_ADC_Clk_On();
     if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
     {
-        printk("%s  with mtk_uldlloopback_open \n",__func__);
-        runtime->rate = 16000;
+        printk("%s  with mtk_uldlloopback_open \n", __func__);
+        runtime->rate = 48000;
         return 0;
     }
 
@@ -152,7 +152,7 @@ static int mtk_uldlloopbackpcm_close(struct snd_pcm_substream *substream)
     printk("%s \n", __func__);
     if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
     {
-        printk("%s  with SNDRV_PCM_STREAM_CAPTURE \n",__func__);
+        printk("%s  with SNDRV_PCM_STREAM_CAPTURE \n", __func__);
         return 0;
     }
 
@@ -162,15 +162,31 @@ static int mtk_uldlloopbackpcm_close(struct snd_pcm_substream *substream)
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I03, Soc_Aud_InterConnectionOutput_O03);
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I04, Soc_Aud_InterConnectionOutput_O04);
 
+    
+    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC, false);
+    if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC) == false)
+    {
+        SetI2SAdcEnable(false);
+    }
+
+    // stop DAC output
+    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, false);
+    if (GetI2SDacEnable() == false)
+    {
+        SetI2SDacEnable(false);
+    }
+
     // stop I2S
     Afe_Set_Reg(AFE_I2S_CON3, 0x0, 0x1);
-    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, false);
-    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC, false);
+    Afe_Set_Reg(AFE_I2S_CON, 0x0, 0x1);
+    Afe_Set_Reg(AFE_I2S_CON1, 0x0, 0x1);
+    Afe_Set_Reg(AFE_I2S_CON2, 0x0, 0x1);
 
-    EnableAfe (false);
+    EnableAfe(false);
+
+    AudDrv_ADC_Clk_Off();
 
     AudDrv_Clk_Off();
-    AudDrv_ADC_Clk_Off();
     return 0;
 }
 
@@ -215,24 +231,35 @@ static struct page *mtk_uldlloopback_page(struct snd_pcm_substream *substream,
     return virt_to_page(dummy_page[substream->stream]); /* the same page */
 }
 
+static AudioDigtalI2S mAudioDigitalI2S;
+static void ConfigAdcI2S(struct snd_pcm_substream *substream)
+{
+    mAudioDigitalI2S.mLR_SWAP = Soc_Aud_LR_SWAP_NO_SWAP;
+    mAudioDigitalI2S.mBuffer_Update_word = 8;
+    mAudioDigitalI2S.mFpga_bit_test = 0;
+    mAudioDigitalI2S.mFpga_bit = 0;
+    mAudioDigitalI2S.mloopback = 0;
+    mAudioDigitalI2S.mINV_LRCK = Soc_Aud_INV_LRCK_NO_INVERSE;
+    mAudioDigitalI2S.mI2S_FMT = Soc_Aud_I2S_FORMAT_I2S;
+    mAudioDigitalI2S.mI2S_WLEN = Soc_Aud_I2S_WLEN_WLEN_16BITS;
+    mAudioDigitalI2S.mI2S_SAMPLERATE = (substream->runtime->rate);
+}
+
 static int mtk_uldlloopback_pcm_prepare(struct snd_pcm_substream *substream)
 {
     struct snd_pcm_runtime *runtime = substream->runtime;
-    uint32 eSamplingRate = SampleRateTransform(runtime->rate);
-    uint32 dVoiceModeSelect = 0;
-    uint32 Audio_I2S_Dac = 0;
+    //uint32 eSamplingRate = SampleRateTransform(runtime->rate);
+    //uint32 dVoiceModeSelect = 0;
+    //uint32 Audio_I2S_Dac = 0;
     uint32 u32AudioI2S = 0;
-
-    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, true);
-    SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC, true);
 
     if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
     {
-        printk("%s  with mtk_uldlloopback_pcm_prepare \n",__func__);
+        printk("%s  with mtk_uldlloopback_pcm_prepare \n", __func__);
         return 0;
     }
 
-    printk("%s rate = %d\n", __func__,runtime->rate);
+    printk("%s rate = %d\n", __func__, runtime->rate);
 
     Afe_Set_Reg(AFE_TOP_CON0, 0x00000000, 0xffffffff);
     if (runtime->format == SNDRV_PCM_FORMAT_S32_LE || runtime->format == SNDRV_PCM_FORMAT_U32_LE)
@@ -256,65 +283,40 @@ static int mtk_uldlloopback_pcm_prepare(struct snd_pcm_substream *substream)
     SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I03, Soc_Aud_InterConnectionOutput_O03);
     SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I04, Soc_Aud_InterConnectionOutput_O04);
 
-
     Afe_Set_Reg(AFE_ADDA_TOP_CON0, 0, 0x1); //Using Internal ADC
-    if (eSamplingRate == Soc_Aud_I2S_SAMPLERATE_I2S_8K)
-    {
-        dVoiceModeSelect = 0;
-    }
-    else if (eSamplingRate == Soc_Aud_I2S_SAMPLERATE_I2S_16K)
-    {
-        dVoiceModeSelect = 1;
-    }
-    else if (eSamplingRate == Soc_Aud_I2S_SAMPLERATE_I2S_32K)
-    {
-        dVoiceModeSelect = 2;
-    }
-    else if (eSamplingRate == Soc_Aud_I2S_SAMPLERATE_I2S_48K)
-    {
-        dVoiceModeSelect = 3;
-    }
-    else
-    {
 
-    }
-
-    Afe_Set_Reg(AFE_ADDA_UL_SRC_CON0, ((dVoiceModeSelect << 19) | dVoiceModeSelect) << 17, 0x001E0000);
-    Afe_Set_Reg(AFE_ADDA_NEWIF_CFG0, 0x03F87201, 0xFFFFFFFF); // up8x txif sat on
-    Afe_Set_Reg(AFE_ADDA_NEWIF_CFG1, ((dVoiceModeSelect < 3) ? 1 : 3) << 10, 0x00000C00);
-
-
-    Afe_Set_Reg(AFE_ADDA_NEWIF_CFG1, 0x03117580, 0xffffffff);
-
-    // ADDA , samplerate is 16K
-    Afe_Set_Reg(AFE_I2S_CON, 0x00000409, 0xffffffff);
-    Afe_Set_Reg(AFE_ADDA_UL_DL_CON0, 0x1, 0xffffffff);
-
-    Afe_Set_Reg(AFE_ADDA_UL_SRC_CON0, 0x00000001, 0x1);
-    Afe_Set_Reg(AFE_ADDA_UL_SRC_CON1, 0x00000000, 0xffffffff);
-
-    SetDLSrc2(runtime->rate);
-    Audio_I2S_Dac |= (Soc_Aud_LR_SWAP_NO_SWAP << 31);
-    Audio_I2S_Dac |= (SampleRateTransform(runtime->rate) << 8);
-    Audio_I2S_Dac |= (Soc_Aud_INV_LRCK_NO_INVERSE << 5);
-    Audio_I2S_Dac |= (Soc_Aud_I2S_FORMAT_I2S << 3);
-    Audio_I2S_Dac |= (Soc_Aud_I2S_WLEN_WLEN_16BITS << 1);
-    Afe_Set_Reg(AFE_I2S_CON1, Audio_I2S_Dac|0x1, MASK_ALL);
-
-    Afe_Set_Reg(AFE_ADDA_DL_SRC2_CON0, 0x1, 0x1);
-    Afe_Set_Reg(AFE_ADDA_DL_SRC2_CON1, 0xFFFF0000, 0xffffffff); //  get dl gain
-
-
-    // 2nd I2S Out
     u32AudioI2S |= Soc_Aud_LOW_JITTER_CLOCK << 12 ; //Low jitter mode
     u32AudioI2S |= SampleRateTransform(runtime->rate) << 8;
     u32AudioI2S |= Soc_Aud_I2S_FORMAT_I2S << 3; // us3 I2s format
     u32AudioI2S |= Soc_Aud_I2S_WLEN_WLEN_32BITS << 1; // 32 BITS
-
     printk("u32AudioI2S= 0x%x\n", u32AudioI2S);
     Afe_Set_Reg(AFE_I2S_CON3, u32AudioI2S | 1, AFE_MASK_ALL);
 
-    EnableAfe (true);
+     // start I2S DAC out
+    if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC) == false)
+    {
+        SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, true);
+        SetI2SDacOut(substream->runtime->rate, false, Soc_Aud_I2S_WLEN_WLEN_32BITS);
+        SetI2SDacEnable(true);
+    }
+    else
+    {
+        SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, true);
+    }
+
+    if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC) == false)
+    {
+        ConfigAdcI2S(substream);
+        SetI2SAdcIn(&mAudioDigitalI2S);
+        SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC, true);
+        SetI2SAdcEnable(true);
+    }
+    else
+    {
+        SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_ADC, true);
+    }
+
+    EnableAfe(true);
 
     return 0;
 }
@@ -410,9 +412,9 @@ static struct platform_driver mtk_afe_uldllopback_driver =
     .driver = {
         .name = MT_SOC_ULDLLOOPBACK_PCM,
         .owner = THIS_MODULE,
-        #ifdef CONFIG_OF
+#ifdef CONFIG_OF
         .of_match_table = mt_soc_pcm_uldlloopback_of_ids,
-        #endif        
+#endif        
     },
     .probe = mtk_uldlloopback_probe,
     .remove = mtk_afe_uldlloopback_remove,
@@ -426,7 +428,7 @@ static int __init mtk_soc_uldlloopback_platform_init(void)
 {
     int ret = 0;
     printk("%s\n", __func__);
-    #ifndef CONFIG_OF
+#ifndef CONFIG_OF
     soc_mtkafe_uldlloopback_dev = platform_device_alloc(MT_SOC_ULDLLOOPBACK_PCM , -1);
     if (!soc_mtkafe_uldlloopback_dev)
     {
@@ -439,7 +441,7 @@ static int __init mtk_soc_uldlloopback_platform_init(void)
         platform_device_put(soc_mtkafe_uldlloopback_dev);
         return ret;
     }
-    #endif
+#endif
     ret = platform_driver_register(&mtk_afe_uldllopback_driver);
 
     return ret;

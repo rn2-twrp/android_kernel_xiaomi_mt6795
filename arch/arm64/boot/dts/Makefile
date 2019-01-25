@@ -27,7 +27,8 @@ MTK_ARCH_LIST := $(CONFIG_ARCH_MT6752)  \
                  $(CONFIG_ARCH_MT6795)  \
                  $(CONFIG_ARCH_MT6735)  \
                  $(CONFIG_ARCH_MT6735M) \
-                 $(CONFIG_ARCH_MT6753)
+                 $(CONFIG_ARCH_MT6753)  \
+                 $(CONFIG_ARCH_MT8163)
 
 ifneq ($(filter y, $(MTK_ARCH_LIST)),)
 # For K2/6795 arm32

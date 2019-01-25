@@ -82,7 +82,6 @@ static void spin_bug(raw_spinlock_t *lock, const char *msg)
     snprintf( aee_str, 50, "Spinlock %s :%s\n", current->comm, msg);
     if(!strcmp(msg,"bad magic")){
         printk("[spin lock debug] bad magic:%08x, should be %08x, may use an un-initial spin_lock or mem corrupt\n", lock->magic, SPINLOCK_MAGIC);
-        printk(">>>>>>>>>>>>>> Let's KE <<<<<<<<<<<<<<\n");
         BUG_ON(1);
     }
     aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DUMMY_DUMP | DB_OPT_FTRACE, aee_str,"spinlock debugger\n");
@@ -163,10 +162,13 @@ static void __spin_lock_debug(raw_spinlock_t *lock)
 #ifdef CONFIG_SMP
 			trigger_all_cpu_backtrace();
 #endif
-            debug_show_all_locks();
-            snprintf( aee_str, 50, "Spinlock lockup:%s\n", current->comm);
-            aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DUMMY_DUMP | DB_OPT_FTRACE, aee_str,"spinlock debugger\n");
-
+			/* ensure debug_locks is true,then can call aee */
+			if (debug_locks) {
+				debug_show_all_locks();
+				snprintf(aee_str, 50, "Spinlock lockup:%s\n", current->comm);
+				aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DUMMY_DUMP | DB_OPT_FTRACE,
+					aee_str, "spinlock debugger\n");
+			}
 		}
 	}
 #else //CONFIG_MTK_MUTATION

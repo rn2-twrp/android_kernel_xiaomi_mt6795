@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*/
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
+#ifdef HDMI_MT8193_SUPPORT
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -31,6 +31,7 @@
 #include <linux/fs.h>
 #include <linux/string.h>
 #include <linux/completion.h>
+#include <linux/debugfs.h>
 
 #include "mt8193_ctrl.h"
 
@@ -40,8 +41,8 @@
 #include "hdmi_drv.h"
 #include <cust_eint.h>
 #include "cust_gpio_usage.h"
-#include "mach/eint.h"
-#include "mach/irqs.h"
+//#include "mach/eint.h"
+//#include "mach/irqs.h"
 #include "mach/mt_boot.h"
 
 #include <mach/devs.h>
@@ -54,6 +55,8 @@
 #include "mt8193avd.h"
 #include "mt8193hdmicmd.h"
 
+#include "extd_factory.h"
+#include "ddp_hal.h"
 
 /*----------------------------------------------------------------------------*/
 /* Debug message defination */
@@ -70,21 +73,21 @@ static struct timer_list r_cec_timer;
 static uint32_t gHDMI_CHK_INTERVAL = 10;
 static uint32_t gCEC_CHK_INTERVAL = 20;
 
-size_t mt8193_log_on = 0;
-size_t mt8193_cec_on = 0;
-size_t mt8193_cec_interrupt = 0;
-size_t mt8193_cecinit = 0;
-size_t mt8193_hdmiinit = 0;
-size_t mt8193_hotinit = 0;
+unsigned int mt8193_log_on = hdmideflog;
+unsigned int mt8193_cec_on = 0;
+unsigned int mt8193_cec_interrupt = 0;
+unsigned int mt8193_cecinit = 0;
+unsigned char mt8193_hdmiinit = 0;
+unsigned char mt8193_hotinit = 0;
 
-size_t mt8193_hdmipoweroninit = 0;
+unsigned char mt8193_hdmipoweroninit = 0;
 size_t mt8193_TmrValue[MAX_HDMI_TMR_NUMBER] = { 0 };
 
 size_t mt8193_hdmiCmd = 0xff;
 size_t mt8193_rxcecmode = CEC_NORMAL_MODE;
 HDMI_CTRL_STATE_T e_hdmi_ctrl_state = HDMI_STATE_IDLE;
 HDCP_CTRL_STATE_T e_hdcp_ctrl_state = HDCP_RECEIVER_NOT_READY;
-size_t mt8193_hotplugstate = HDMI_STATE_HOT_PLUG_OUT;
+unsigned int mt8193_hotplugstate = HDMI_STATE_HOT_PLUG_OUT;
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
 size_t mt8193_hdmiearlysuspend = 1;
@@ -113,12 +116,12 @@ static int mt8193_nlh_kthread(void *data);
 
 static void vInitAvInfoVar(void)
 {
-	_stAvdAVInfo.e_resolution = HDMI_VIDEO_1280x720p_50Hz;
+	_stAvdAVInfo.e_resolution = HDMI_VIDEO_1280x720p_60Hz;
 	_stAvdAVInfo.fgHdmiOutEnable = TRUE;
 	_stAvdAVInfo.fgHdmiTmdsEnable = TRUE;
 
 	_stAvdAVInfo.bMuteHdmiAudio = FALSE;
-	_stAvdAVInfo.e_video_color_space = HDMI_YCBCR_444;
+	_stAvdAVInfo.e_video_color_space = HDMI_RGB;
 	_stAvdAVInfo.e_deep_color_bit = HDMI_NO_DEEP_COLOR;
 	_stAvdAVInfo.ui1_aud_out_ch_number = 2;
 	_stAvdAVInfo.e_hdmi_fs = HDMI_FS_44K;
@@ -162,7 +165,7 @@ static void mt8193_get_params(HDMI_PARAMS *params)
 
 	MT8193_DRV_LOG("720p\n");
 	params->init_config.vformat = HDMI_VIDEO_1280x720p_50Hz;
-	params->init_config.aformat = HDMI_AUDIO_PCM_16bit_48000;
+	params->init_config.aformat = HDMI_AUDIO_48K_2CH;
 
 	params->clk_pol = HDMI_POLARITY_FALLING;
 	params->de_pol = HDMI_POLARITY_RISING;
@@ -224,7 +227,8 @@ static void mt8193_resume(void)
 static int mt8193_video_config(HDMI_VIDEO_RESOLUTION vformat, HDMI_VIDEO_INPUT_FORMAT vin,
 			       HDMI_VIDEO_OUTPUT_FORMAT vout)
 {
-	MT8193_DRV_FUNC();
+	HDMI_DEF_LOG("[hdmi]mt8193_video_config:%d\n",vformat);
+        
 	if (r_hdmi_timer.function) {
 		del_timer_sync(&r_hdmi_timer);
 	}
@@ -257,7 +261,7 @@ static int mt8193_video_config(HDMI_VIDEO_RESOLUTION vformat, HDMI_VIDEO_INPUT_F
 
 /*----------------------------------------------------------------------------*/
 
-static int mt8193_audio_config(HDMI_AUDIO_FORMAT aformat)
+static int mt8193_audio_config(HDMI_AUDIO_FORMAT aformat,int bitWidth)
 {
 	MT8193_DRV_FUNC();
 
@@ -296,16 +300,21 @@ void mt8193_set_mode(unsigned char ucMode)
 
 int mt8193_power_on(void)
 {
-	MT8193_DRV_FUNC();
+        unsigned int dpi_pin_start = 0;
+        
+	HDMI_DEF_LOG("[hdmi]mt8193_power_on\n");
 #if defined(CONFIG_HAS_EARLYSUSPEND)
 	if (mt8193_hdmiearlysuspend == 0)
 		return 0;
 #endif
 	mt8193_hotinit = 0;
 	mt8193_hotplugstate = HDMI_STATE_HOT_PLUG_OUT;
+#ifdef GPIO_HDMI_POWER_CONTROL
 	mt_set_gpio_mode(GPIO_HDMI_POWER_CONTROL, GPIO_MODE_00);
 	mt_set_gpio_dir(GPIO_HDMI_POWER_CONTROL, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO_HDMI_POWER_CONTROL, GPIO_OUT_ONE);
+              HDMI_DEF_LOG("[hdmi]hdmi_5v_on\n");
+#endif
 
 	vWriteHdmiSYSMsk(HDMI_PWR_CTRL, hdmi_power_turnon, hdmi_power_turnon);
 	vWriteHdmiSYSMsk(HDMI_SYS_PWR_RST_B, hdmi_pwr_sys_sw_unreset, hdmi_pwr_sys_sw_unreset);
@@ -342,17 +351,19 @@ int mt8193_power_on(void)
 
 void mt8193_power_off(void)
 {
-	MT8193_DRV_FUNC();
+	HDMI_DEF_LOG("[hdmi]mt8193_power_off\n");
 
 	mt8193_hotinit = 1;
 	mt8193_hotplugstate = HDMI_STATE_HOT_PLUG_OUT;
 	vSetSharedInfo(SI_HDMI_RECEIVER_STATUS, HDMI_PLUG_OUT);
 	vWriteHdmiIntMask(0xFF);
 	vWriteHdmiSYSMsk(HDMI_SYS_CFG1C, 0, ANLG_ON | HDMI_ON);
-
+#ifdef GPIO_HDMI_POWER_CONTROL
 	mt_set_gpio_mode(GPIO_HDMI_POWER_CONTROL, GPIO_MODE_00);
 	mt_set_gpio_dir(GPIO_HDMI_POWER_CONTROL, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO_HDMI_POWER_CONTROL, GPIO_OUT_ZERO);
+              HDMI_DEF_LOG("[hdmi]hdmi_5v_off\n");
+#endif
 
 	vWriteHdmiSYSMsk(HDMI_PWR_CTRL, hdmi_clock_off, hdmi_clock_off);
 	vWriteHdmiSYSMsk(HDMI_PWR_CTRL, hdmi_iso_en, hdmi_iso_en);
@@ -366,6 +377,12 @@ void mt8193_power_off(void)
 		del_timer_sync(&r_cec_timer);
 	}
 	memset((void *)&r_cec_timer, 0, sizeof(r_cec_timer));
+}
+void mt8193_register_callback(CABLE_INSERT_CALLBACK cb)
+{
+}
+void mt8193_unregister_callback(CABLE_INSERT_CALLBACK cb)
+{
 }
 
 /*----------------------------------------------------------------------------*/
@@ -398,18 +415,18 @@ void mt8193_log_enable(u16 enable)
 	MT8193_DRV_FUNC();
 
 	if (enable == 0) {
-		pr_debug("hdmi_pll_log =   0x1\n");
-		pr_debug("hdmi_dgi_log =   0x2\n");
-		pr_debug("hdmi_plug_log =  0x4\n");
-		pr_debug("hdmi_video_log = 0x8\n");
-		pr_debug("hdmi_audio_log = 0x10\n");
-		pr_debug("hdmi_hdcp_log =  0x20\n");
-		pr_debug("hdmi_cec_log =   0x40\n");
-		pr_debug("hdmi_ddc_log =   0x80\n");
-		pr_debug("hdmi_edid_log =  0x100\n");
-		pr_debug("hdmi_drv_log =   0x200\n");
+		hdmi_print("hdmi_pll_log =   0x1\n");
+		hdmi_print("hdmi_dgi_log =   0x2\n");
+		hdmi_print("hdmi_plug_log =  0x4\n");
+		hdmi_print("hdmi_video_log = 0x8\n");
+		hdmi_print("hdmi_audio_log = 0x10\n");
+		hdmi_print("hdmi_hdcp_log =  0x20\n");
+		hdmi_print("hdmi_cec_log =   0x40\n");
+		hdmi_print("hdmi_ddc_log =   0x80\n");
+		hdmi_print("hdmi_edid_log =  0x100\n");
+		hdmi_print("hdmi_drv_log =   0x200\n");
 
-		pr_debug("hdmi_all_log =   0xffff\n");
+		hdmi_print("hdmi_all_log =   0xffff\n");
 
 	}
 
@@ -436,44 +453,47 @@ void mt8193_colordeep(u8 u1colorspace, u8 u1deepcolor)
 {
 	MT8193_DRV_FUNC();
 	if ((u1colorspace == 0xff) && (u1deepcolor == 0xff)) {
-		pr_debug("color_space:HDMI_YCBCR_444 = 2\n");
-		pr_debug("color_space:HDMI_YCBCR_422 = 3\n");
+		hdmi_print("color_space:HDMI_YCBCR_444 = 2\n");
+		hdmi_print("color_space:HDMI_YCBCR_422 = 3\n");
 
-		pr_debug("deep_color:HDMI_NO_DEEP_COLOR = 1\n");
-		pr_debug("deep_color:HDMI_DEEP_COLOR_10_BIT = 2\n");
-		pr_debug("deep_color:HDMI_DEEP_COLOR_12_BIT = 3\n");
-		pr_debug("deep_color:HDMI_DEEP_COLOR_16_BIT = 4\n");
+		hdmi_print("deep_color:HDMI_NO_DEEP_COLOR = 1\n");
+		hdmi_print("deep_color:HDMI_DEEP_COLOR_10_BIT = 2\n");
+		hdmi_print("deep_color:HDMI_DEEP_COLOR_12_BIT = 3\n");
+		hdmi_print("deep_color:HDMI_DEEP_COLOR_16_BIT = 4\n");
 
 		return;
 	}
+        /*
 	if (dReadHdmiSYS(0x2cc) == 0x8193)
 		_stAvdAVInfo.e_video_color_space = HDMI_YCBCR_444;
 	else
 		_stAvdAVInfo.e_video_color_space = HDMI_RGB;
+*/
 
+              _stAvdAVInfo.e_video_color_space = u1colorspace;
 	_stAvdAVInfo.e_deep_color_bit = (HDMI_DEEP_COLOR_T) u1deepcolor;
 }
 
 void mt8193_read(u16 u2Reg, u32 *p4Data)
 {
 	if (u2Reg & 0x8000) {
-		if ((u2Reg & 0xf000) == 0x8000)
-			u2Reg -= 0x8000;
-		*p4Data = (*(unsigned int *)(0xf4000000 + u2Reg));
+//		if ((u2Reg & 0xf000) == 0x8000)
+//			u2Reg -= 0x8000;
+//		*p4Data = (*(unsigned int *)(0xf4000000 + u2Reg));
 	} else
 		mt8193_i2c_read(u2Reg, p4Data);
 
-	pr_debug("Reg read= 0x%04x, data = 0x%08x\n", u2Reg, *p4Data);
+	hdmi_print("Reg read= 0x%04x, data = 0x%08x\n", u2Reg, *p4Data);
 }
 
 void mt8193_write(u16 u2Reg, u32 u4Data)
 {
 	if (u2Reg & 0x8000) {
-		if ((u2Reg & 0xf000) == 0x8000)
-			u2Reg -= 0x8000;
-		*(unsigned int *)(0xf4000000 + u2Reg) = u4Data;
+//		if ((u2Reg & 0xf000) == 0x8000)
+//			u2Reg -= 0x8000;
+//		*(unsigned int *)(0xf4000000 + u2Reg) = u4Data;
 	} else {
-		pr_debug("Reg write= 0x%04x, data = 0x%08x\n", u2Reg, u4Data);
+		hdmi_print("Reg write= 0x%04x, data = 0x%08x\n", u2Reg, u4Data);
 		mt8193_i2c_write(u2Reg, u4Data);
 	}
 }
@@ -483,8 +503,9 @@ static void _mt8193_irq_handler(void)
 	MT8193_DRV_FUNC();
 	atomic_set(&mt8193_nlh_event, 1);
 	wake_up_interruptible(&mt8193_nlh_wq);
-
+#ifdef CUST_EINT_EINT_HDMI_HPD_NUM
 	mt65xx_eint_mask(CUST_EINT_EINT_HDMI_HPD_NUM);
+#endif
 }
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
@@ -507,9 +528,236 @@ static struct early_suspend mt8193_hdmi_early_suspend_desc = {
 };
 #endif
 
+/*********************************************************
+                mt8193 debug
+*********************************************************/
+ #define HDMI_ATTR_SPRINTF(fmt, arg...)  \
+	do { \
+		 temp_len = sprintf(buf,fmt,##arg);	 \
+		 buf += temp_len; \
+		 len += temp_len; \
+		 buf[0] = 0;\
+	}while (0)
+
+extern unsigned long dispsys_reg[DISP_REG_NUM];
+	
+static void process_dbg_opt(const char *opt)
+{
+        u32 reg;
+        unsigned int hdcp_state;
+        unsigned int val;
+        unsigned int vadr_regstart;
+        unsigned int vadr_regend;
+        char *buf;
+        int temp_len = 0;
+        int len = 0;
+        buf = opt;
+
+    if (strncmp(buf, "dbgtype:",8) == 0)
+    {        
+        sscanf(buf+8, "%x", &val);
+        mt8193_log_enable(val);
+        printk("hdmidrv_log_on = 0x%08x\n",mt8193_log_on);
+    }
+    else if (strncmp(buf, "w:",2) == 0)
+    {
+        sscanf(buf+2, "%x=%x", &reg , &val);
+        printk("w:0x%08x=0x%08x\n", reg, val);
+        mt8193_write(reg,val);
+    }
+    else if (strncmp(buf, "r:",2) == 0)
+    {
+        sscanf(buf+2, "%x/%x", &vadr_regstart , &vadr_regend);
+        vadr_regend  &= 0x3ff;
+        printk("r:0x%08x/0x%08x\n", vadr_regstart, vadr_regend);
+        vadr_regend = vadr_regstart + vadr_regend;
+        while (vadr_regstart <= vadr_regend)
+        {
+                mt8193_read(vadr_regstart,&val);
+                HDMI_ATTR_SPRINTF("0x%08x = 0x%08x\n",vadr_regstart,val);
+                vadr_regstart += 4;
+        }
+    }
+    else if (strncmp(buf, "dw:",3) == 0)
+    {
+        sscanf(buf+3, "%x=%x", &reg , &val);
+        printk("dw:0x%08x=0x%08x\n", reg, val);
+
+        *(volatile unsigned int*)(dispsys_reg[DISP_REG_DPI0] + reg) = val;	
+    }
+    else if (strncmp(buf, "dr:",3) == 0)
+    {
+        sscanf(buf+3, "%x/%x", &vadr_regstart , &vadr_regend);
+        vadr_regend  &= 0x3ff;
+        printk("dr:0x%08x/0x%08x\n", vadr_regstart, vadr_regend);
+        vadr_regend = vadr_regstart + vadr_regend;
+        while (vadr_regstart <= vadr_regend)
+        {
+      	        HDMI_ATTR_SPRINTF("0x%08x = 0x%08x\n",vadr_regstart,*(volatile unsigned int*)(dispsys_reg[DISP_REG_DPI0] + vadr_regstart));
+		 vadr_regstart += 4;
+        }
+    }
+    else if (strncmp(buf,"status",6) == 0)
+    {
+        HDMI_ATTR_SPRINTF("[hdmi]mt8193_log_on=%x\n",mt8193_log_on);       
+        HDMI_ATTR_SPRINTF("[hdmi]mt8193_hdmiinit=%d\n",mt8193_hdmiinit);        
+        HDMI_ATTR_SPRINTF("[hdmi]mt8193_hotinit=%d\n",mt8193_hotinit);        
+        HDMI_ATTR_SPRINTF("[hdmi]mt8193_hdmipoweroninit=%d\n",mt8193_hdmipoweroninit);        
+        HDMI_ATTR_SPRINTF("[hdmi]port=%d\n",hdmi_port_status());   
+        if(mt8193_hotplugstate == HDMI_STATE_HOT_PLUGIN_AND_POWER_ON)
+                HDMI_ATTR_SPRINTF("[hdmi]plug:HDMI_STATE_HOT_PLUGIN_AND_POWER_ON\n");
+        else if(mt8193_hotplugstate == HDMI_STATE_HOT_PLUG_OUT)
+                HDMI_ATTR_SPRINTF("[hdmi]plug:HDMI_STATE_HOT_PLUG_OUT\n");
+        else if(mt8193_hotplugstate == HDMI_STATE_HOT_PLUG_IN_ONLY)
+                HDMI_ATTR_SPRINTF("[hdmi]plug:HDMI_STATE_HOT_PLUG_IN_ONLY\n");
+        
+        HDMI_ATTR_SPRINTF("[hdmi]video resolution : %d\n",_stAvdAVInfo.e_resolution);
+        HDMI_ATTR_SPRINTF("[hdmi]video color space : %d\n",_stAvdAVInfo.e_video_color_space);
+        HDMI_ATTR_SPRINTF("[hdmi]video deep color : %d\n",_stAvdAVInfo.e_deep_color_bit);
+        HDMI_ATTR_SPRINTF("[hdmi]audio fs : %d\n",_stAvdAVInfo.e_hdmi_fs);
+        
+        if(vIsDviMode())
+            HDMI_ATTR_SPRINTF("[hdmi]dvi Mode\n");
+        else
+            HDMI_ATTR_SPRINTF("[hdmi]hdmi Mode\n");
+                
+        mt8193_hdmistatus();
+    }
+    else if (0 == strncmp(opt, "po", 2))
+    {
+        mt8193_power_on();
+    }
+    else if (0 == strncmp(opt, "pd", 2))
+    {
+        mt8193_power_off();
+    }
+    else if (0 == strncmp(opt, "cs:", 3))
+    {
+        sscanf(buf+3, "%x", &val);
+        mt8193_colordeep(val,0);
+    }
+    else if (0 == strncmp(opt, "finit",5 ))
+    {
+       hdmi_factory_mode_test(STEP1_CHIP_INIT, NULL);
+    }
+    else if (0 == strncmp(opt, "fres:", 5))
+    {
+        sscanf(buf+5, "%x", &val);
+       hdmi_factory_mode_test(STEP3_START_DPI_AND_CONFIG, val);
+    }
+    else
+    {
+         HDMI_ATTR_SPRINTF("---hdmi debug help---\n");
+         HDMI_ATTR_SPRINTF("please go in to sys/kernel/debug\n");
+         HDMI_ATTR_SPRINTF("[debug type] echo dbgtype:VALUE>8193\n");
+         HDMI_ATTR_SPRINTF("[8193 read reg] echo r:ADDR/LEN>8193;cat 8193\n");
+         HDMI_ATTR_SPRINTF("[8193 write reg] echo w:ADDR=VALUE>8193\n");
+         HDMI_ATTR_SPRINTF("[d2 dpi0  read reg] echo dr:ADDR/LEN>8193;cat 8193\n");
+         HDMI_ATTR_SPRINTF("[d2 dpi0  write reg] echo dw:ADDR=VALUE>8193\n");
+         HDMI_ATTR_SPRINTF("[hdmi status] echo status>8193;cat 8193\n");
+         HDMI_ATTR_SPRINTF("[power on] echo po>8193\n");
+         HDMI_ATTR_SPRINTF("[power off] echo dn>8193\n");
+         HDMI_ATTR_SPRINTF("[color space] echo cs:VALUE>8193\n");
+         HDMI_ATTR_SPRINTF("[factory mode init] echo finit>8193\n");
+         HDMI_ATTR_SPRINTF("[factory res] echo fres:VALUE>8193\n");
+    }
+
+    return;
+}
+
+static void process_dbg_cmd(char *cmd)
+{
+    char *tok;
+
+    printk("[hdmi] %s\n", cmd);
+
+    while ((tok = strsep(&cmd, " ")) != NULL)
+    {
+        process_dbg_opt(tok);
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Debug FileSystem Routines
+// ---------------------------------------------------------------------------
+
+struct dentry *mt8193_hdmi_dbgfs = NULL;
+
+
+static ssize_t mt8193_hdmi_debug_open(struct inode *inode, struct file *file)
+{
+    file->private_data = inode->i_private;
+    return 0;
+}
+
+
+static char mt8193_hdmi_debug_buffer[2048];
+
+static ssize_t mt8193_hdmi_debug_read(struct file *file,
+                          char __user *ubuf, size_t count, loff_t *ppos)
+{
+    int n = 0;
+
+    n = strlen(mt8193_hdmi_debug_buffer);
+    mt8193_hdmi_debug_buffer[n++] = 0;
+
+    return simple_read_from_buffer(ubuf, count, ppos, mt8193_hdmi_debug_buffer, n);
+}
+
+
+static ssize_t mt8193_hdmi_debug_write(struct file *file,
+                           const char __user *ubuf, size_t count, loff_t *ppos)
+{
+    const int debug_bufmax = sizeof(mt8193_hdmi_debug_buffer) - 1;
+    size_t ret;
+
+    ret = count;
+
+    if (count > debug_bufmax)
+    {
+        count = debug_bufmax;
+    }
+
+    if (copy_from_user(&mt8193_hdmi_debug_buffer, ubuf, count))
+    {
+        return -EFAULT;
+    }
+
+    mt8193_hdmi_debug_buffer[count] = 0;
+
+    process_dbg_cmd(mt8193_hdmi_debug_buffer);
+
+    return ret;
+}
+
+
+static struct file_operations mt8193_hdmi_debug_fops =
+{
+    .read  = mt8193_hdmi_debug_read,
+    .write = mt8193_hdmi_debug_write,
+    .open  = mt8193_hdmi_debug_open,
+};
+
+
+void mt8193_hdmi_debug_init(void)
+{
+    mt8193_hdmi_dbgfs = debugfs_create_file("8193",
+                                       S_IFREG | S_IRUGO, NULL, (void *)0, &mt8193_hdmi_debug_fops);
+}
+
+
+void mt8193_hdmi_debug_deinit(void)
+{
+    debugfs_remove(mt8193_hdmi_dbgfs);
+}
+
+/*********************************************************
+                mt8193 end
+*********************************************************/
+
 static int mt8193_init(void)
 {
-	MT8193_DRV_FUNC();
+	HDMI_DEF_LOG("[hdmi]mt8193_init\n");
 
 	init_waitqueue_head(&hdmi_timer_wq);
 	hdmi_timer_task = kthread_create(hdmi_timer_kthread, NULL, "hdmi_timer_kthread");
@@ -527,6 +775,7 @@ static int mt8193_init(void)
 	register_early_suspend(&mt8193_hdmi_early_suspend_desc);
 #endif
 
+              mt8193_hdmi_debug_init();
 
 	return 0;
 }
@@ -541,22 +790,23 @@ static void vNotifyAppHdmiState(u8 u1hdmistate)
 {
 	HDMI_EDID_INFO_T get_info;
 
-	MT8193_PLUG_LOG("u1hdmistate = %d\n", u1hdmistate);
-
 	mt8193_AppGetEdidInfo(&get_info);
 
 	switch (u1hdmistate) {
 	case HDMI_PLUG_OUT:
+                            HDMI_DEF_LOG("[hdmi]notify plug:HDMI_STATE_NO_DEVICE\n");
 		hdmi_util.state_callback(HDMI_STATE_NO_DEVICE);
 		mt8193_SetPhysicCECAddress(0xffff, 0x0);
 		break;
 
 	case HDMI_PLUG_IN_AND_SINK_POWER_ON:
+                            HDMI_DEF_LOG("[hdmi]notify plug:HDMI_STATE_ACTIVE\n");
 		hdmi_util.state_callback(HDMI_STATE_ACTIVE);
 		mt8193_SetPhysicCECAddress(get_info.ui2_sink_cec_address, 0x4);
 		break;
 
 	case HDMI_PLUG_IN_ONLY:
+                            HDMI_DEF_LOG("[hdmi]notify plug:HDMI_STATE_PLUGIN_ONLY\n");
 		hdmi_util.state_callback(HDMI_STATE_PLUGIN_ONLY);
 		mt8193_SetPhysicCECAddress(get_info.ui2_sink_cec_address, 0xf);
 		break;
@@ -566,6 +816,7 @@ static void vNotifyAppHdmiState(u8 u1hdmistate)
 		break;
 
 	default:
+                            HDMI_DEF_LOG("[hdmi]notify plug:err\n");
 		break;
 
 	}
@@ -739,7 +990,7 @@ void cec_timer_impl(void)
 void mt8193_nlh_impl(void)
 {
 	u32 u4Data;
-	u8 bData, bData1;
+	u8 bData;
 	u8 bMask;
 
 	/* read register and then assert which interrupt occured */
@@ -774,7 +1025,9 @@ void mt8193_nlh_impl(void)
 			/* vWriteHdmiIntMask((0xfd));//INT mask MDI */
 		}
 	}
+#ifdef CUST_EINT_EINT_HDMI_HPD_NUM        
 	mt65xx_eint_unmask(CUST_EINT_EINT_HDMI_HPD_NUM);
+#endif
 }
 
 static int hdmi_timer_kthread(void *data)
@@ -904,6 +1157,8 @@ const HDMI_DRIVER *HDMI_GetDriver(void)
 		.getcecaddr = mt8193_NotifyApiCECAddress,
 		.mutehdmi = mt8193_mutehdmi,
 		.checkedidheader = mt8193_Check_EdidHeader,
+		.register_callback = mt8193_register_callback,
+		.unregister_callback = mt8193_unregister_callback,
 	};
 
 	return &HDMI_DRV;

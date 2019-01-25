@@ -30,6 +30,7 @@
 #include <asm/setup.h>
 #include <asm/tlb.h>
 #include <asm/fixmap.h>
+#include <linux/mrdump.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -385,7 +386,7 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
 		mdesc->reserve();
-
+	
 	early_init_fdt_scan_reserved_mem();
 
     //reserve for ion_carveout_heap
@@ -397,6 +398,7 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	 */
 	dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));
 
+	mrdump_rsvmem();
 	arm_memblock_steal_permitted = false;
 	memblock_allow_resize();
 	memblock_dump_all();

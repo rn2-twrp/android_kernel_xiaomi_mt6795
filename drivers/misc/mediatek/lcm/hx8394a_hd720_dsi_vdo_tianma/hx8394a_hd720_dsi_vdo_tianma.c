@@ -295,7 +295,7 @@ static void lcm_resume(void)
     #ifdef BUILD_LK
 	  printf("[LK]---cmd---hx8394a_hd720_dsi_vdo_tianma----%s------\n",__func__);
     #else
-	  printk("[KERNEL]---cmd---hx8394a_hd720_dsi_vdo_tianma----%s------\n",__func__);
+	  pr_debug("[KERNEL]---cmd---hx8394a_hd720_dsi_vdo_tianma----%s------\n",__func__);
     #endif	
 }
          

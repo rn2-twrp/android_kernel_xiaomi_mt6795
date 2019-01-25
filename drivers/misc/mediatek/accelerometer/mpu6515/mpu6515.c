@@ -2339,8 +2339,6 @@ static int gsensor_enable_nodata(int en)
 #endif
 /*----------------------------------------------------------------------------*/
 // if use  this typ of enable , Gsensor only enabled but not report inputEvent to HAL
-// m sensor daemon may enable sensor power, but this does not mean sensor hub power on,
-// we use another power status variable for the projects with sensor hub.
 #ifdef CUSTOM_KERNEL_SENSORHUB
 static int scp_gsensor_enable_nodata(int en)
 {
@@ -2491,9 +2489,9 @@ static int gsensor_get_data(int* x ,int* y,int* z, int* status)
     }
 
     //sscanf(buff, "%x %x %x", req.get_data_rsp.int16_Data[0], req.get_data_rsp.int16_Data[1], req.get_data_rsp.int16_Data[2]);
-    *x = req.get_data_rsp.int16_Data[0];
-    *y = req.get_data_rsp.int16_Data[1];
-    *z = req.get_data_rsp.int16_Data[2];
+    *x = (int)req.get_data_rsp.int16_Data[0]*GRAVITY_EARTH_1000/1000;
+    *y = (int)req.get_data_rsp.int16_Data[1]*GRAVITY_EARTH_1000/1000;
+    *z = (int)req.get_data_rsp.int16_Data[2]*GRAVITY_EARTH_1000/1000;
     //GSE_ERR("x = %d, y = %d, z = %d\n", *x, *y, *z);
     *status = SENSOR_STATUS_ACCURACY_MEDIUM;
 
@@ -2634,7 +2632,7 @@ static int mpu6515_i2c_probe(struct i2c_client *client, const struct i2c_device_
         goto exit_create_attr_failed;
     }
 
-    err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 1000, 0);
+    err = batch_register_support_info(ID_ACCELEROMETER,ctl.is_support_batch, 102, 0); //divisor is 1000/9.8
     if(err)
     {
         GSE_ERR("register gsensor batch support err = %d\n", err);

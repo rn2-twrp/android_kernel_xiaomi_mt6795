@@ -16,7 +16,6 @@ extern void __iomem *spm_cksys_base;
 extern void __iomem *spm_ddrphy0_base;
 extern void __iomem *spm_ddrphy1_base;
 extern void __iomem *spm_pericfg_base;
-extern void __iomem *spm_eint_base;
 #endif
 extern void __iomem *spm_mcucfg;
 extern void __iomem *spm_md32_base;

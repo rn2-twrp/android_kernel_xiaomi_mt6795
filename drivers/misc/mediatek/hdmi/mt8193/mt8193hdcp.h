@@ -1,6 +1,6 @@
 #ifndef __mt8193hdcp_h__
 #define __mt8193hdcp_h__
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
+#ifdef HDMI_MT8193_SUPPORT
 
 
 typedef enum {

@@ -414,7 +414,6 @@ static u8 gup_enter_update_judge(st_fw_head *fw_head)
         {
             pid_cmp_len = strlen(update_msg.ic_fw_msg.pid);
         }
-        GTP_DEBUG("Len(file_pid): %d, Len(ic_pid): %d, Len(cmp_pid): %d", strlen(fw_head->pid), strlen(update_msg.ic_fw_msg.pid), pid_cmp_len);
         
         if ((!memcmp(fw_head->pid, update_msg.ic_fw_msg.pid, pid_cmp_len)) || 
                 (!memcmp(update_msg.ic_fw_msg.pid, "91XX", 4)) ||
@@ -613,7 +612,6 @@ static u8 gup_check_update_file(struct i2c_client *client, st_fw_head *fw_head, 
 
     if (path)
     {
-        GTP_DEBUG("Update File path:%s, %d", path, strlen(path));
         update_msg.file = filp_open(path, O_RDONLY, 0644);
 
         if (IS_ERR(update_msg.file))
@@ -2499,7 +2497,7 @@ s32 gup_fw_download_proc(void *dir, u8 dwn_mode)
 
     while (retry++ < 5)
     {
-
+    
         ret = gup_download_fw_ss51(i2c_client_point, dwn_mode);
         show_len = 60;
         if (FAIL == ret)

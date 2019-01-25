@@ -34,7 +34,7 @@ After finishing the OTP written, we will provide you the golden_rg and golden_bg
 
 #include <linux/xlog.h>
 #define PFX "imx135_otp"
-#define LOG_INF(format, args...)    xlog_printk(ANDROID_LOG_DEBUG   , PFX, "[%s] " format, __FUNCTION__, ##args)
+#define LOG_INF(format, args...)    pr_debug(PFX "[%s] " format, __FUNCTION__, ##args)
 
 //#include "imx135_otp.h"
 
@@ -311,7 +311,7 @@ BYTE get_light_id(BYTE zone)
 * Description :  get LSC WRITTEN_FLAG
 * Return      :  [BYTE], if 0x40 , this type has valid lsc data, otherwise, invalid otp data
 **************************************************************************************************/
-BYTE get_lsc_flag()
+BYTE get_lsc_flag(void)
 {
     BYTE flag = 0;
     if(!start_read_otp(0x0B))
@@ -331,7 +331,7 @@ BYTE get_lsc_flag()
 * Return      :  [bool] 0 : OTP data fail
                         1 : otp_lenc update success
 **************************************************************************************************/
-bool otp_lenc_update()
+bool otp_lenc_update(void)
 {
     BYTE lsc_flag;
     int i, j;
@@ -398,7 +398,7 @@ bool otp_lenc_update()
                         1 : WB set success
 **************************************************************************************************/
 
-bool wb_gain_set()
+bool wb_gain_set(void)
 {
     USHORT R_GAIN;
     USHORT B_GAIN;
@@ -596,7 +596,10 @@ bool otp_update(BYTE update_sensor_otp_awb, BYTE update_sensor_otp_lsc)
     BYTE MID = 0x00;
     int i;
 
-    LOG_INF("update_sensor_otp_awb: %d, update_sensor_otp_lsc: %d\n", update_sensor_otp_awb, update_sensor_otp_lsc );
+    LOG_INF("update_sensor_otp_awb: %d, update_sensor_otp_lsc: %d _otp_awb_set %d _otp_lsc_set%d\n",
+		update_sensor_otp_awb, update_sensor_otp_lsc, _otp_awb_set, _otp_lsc_set);
+    if(_otp_awb_set ==1 &&_otp_lsc_set ==1)
+		return 1;
 
     for(i=0;i<3;i++)
     {
@@ -625,24 +628,25 @@ bool otp_update(BYTE update_sensor_otp_awb, BYTE update_sensor_otp_lsc)
     }
 
     if(0 != update_sensor_otp_awb && _otp_awb_set == 0) {
+    	spin_lock(&imx135_otp_lock);
+        _otp_awb_set = 1;
+        spin_unlock(&imx135_otp_lock);
         if(otp_wb_update(zone)){
-  		    spin_lock(&imx135_otp_lock);
-            _otp_awb_set = 1;
-            spin_unlock(&imx135_otp_lock);
+	    return 0;
         }
     }
 
 
     if(0 != update_sensor_otp_lsc && _otp_lsc_set == 0)
     {
+        spin_lock(&imx135_otp_lock);
+        _otp_lsc_set = 1;
+     	spin_unlock(&imx135_otp_lock);
         if(!otp_lenc_update())
         {
             LOG_INF("OTP Update LSC Err\n");
             return 0;
         }
-		spin_lock(&imx135_otp_lock);
-        _otp_lsc_set = 1;
-     	spin_unlock(&imx135_otp_lock);
     }
     return 1;
 }

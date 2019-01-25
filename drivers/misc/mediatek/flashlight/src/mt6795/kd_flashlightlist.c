@@ -42,15 +42,9 @@
 
 
 
-//return value :
-  // KAL_FALSE : charger沒有使用中
-   //KAL_TRUE : charger使用中
 
 extern kal_bool bat_is_charger_exist(void);
 
-    //return value:
-      //  true: execute in OTG mode
-        //false: otherwise
 extern bool mtk_is_host_mode(void);
 
 int strobe_getPartId(int sensorDev, int strobeId);
@@ -78,27 +72,18 @@ struct wake_lock flash_wake_lock;
  * Debug configuration
 ******************************************************************************/
 #ifdef WIN32
-#define logI(fmt, ...)    {printf(fmt, __VA_ARGS__); printf("\n");}
-#define logE(fmt, ...)    {printf("merror: %d ", __LINE__); printf(fmt, __VA_ARGS__); printf("\n");}
+#define logI(fmt, ...)    {printf(fmt, __VA_ARGS__); printf("\n"); }
 #else
-	#define PFX "[KD_CAMERA_FLASHLIGHT]"
-	#define PK_DBG_NONE(fmt, arg...)    do {} while (0)
-	#define PK_DBG_FUNC(fmt, arg...)    printk(KERN_INFO PFX "%s: " fmt, __FUNCTION__ ,##arg)
+#define PFX "[KD_CAMERA_FLASHLIGHT]"
+#define PK_DBG_NONE(fmt, arg...)    do {} while (0)
+#define PK_DBG_FUNC(fmt, arg...)    pr_debug(PFX "%s: " fmt, __func__ , ##arg)
 
-	#define PK_WARN(fmt, arg...)        printk(KERN_WARNING PFX "%s: " fmt, __FUNCTION__ ,##arg)
-	#define PK_NOTICE(fmt, arg...)      printk(KERN_NOTICE PFX "%s: " fmt, __FUNCTION__ ,##arg)
-	#define PK_INFO(fmt, arg...)        printk(KERN_INFO PFX "%s: " fmt, __FUNCTION__ ,##arg)
-	#define PK_TRC_FUNC(f)              printk(PFX "<%s>\n", __FUNCTION__);
-	#define PK_TRC_VERBOSE(fmt, arg...) printk(PFX fmt, ##arg)
-
-	#define DEBUG_KD_STROBE
-	#ifdef DEBUG_KD_STROBE
-	#define logI PK_DBG_FUNC
-	#define logE(fmt, arg...)         printk(KERN_ERR PFX "%s: " fmt, __FUNCTION__ ,##arg)
-	#else
-	#define logI(a,...)
-	#define logE(a,...)
-	#endif
+/*#define DEBUG_KD_STROBE*/
+#ifdef DEBUG_KD_STROBE
+#define logI PK_DBG_FUNC
+#else
+#define logI(a, ...)
+#endif
 #endif
 //==============================
 // variables
@@ -236,7 +221,7 @@ int getSensorDevIndex(int sensorDev)
 		return 2;
 	else
 	{
-		logE("sensorDev=%d is wrong",sensorDev);
+		logI("sensorDev=%d is wrong", sensorDev);
 		return -1;
 	}
 }
@@ -244,7 +229,7 @@ int getStrobeIndex(int strobeId)
 {
 	if(strobeId<1 ||  strobeId>2)
 	{
-		logE("strobeId=%d is wrong",strobeId);
+		logI("strobeId=%d is wrong", strobeId);
 		return -1;
 	}
 	return strobeId-1;
@@ -253,7 +238,7 @@ int getPartIndex(int partId)
 {
 	if(partId<1 ||  partId>2)
 	{
-		logE("partId=%d is wrong",partId);
+		logI("partId=%d is wrong", partId);
 		return -1;
 	}
 	return partId-1;
@@ -282,7 +267,7 @@ MINT32 default_flashlight_ioctl(unsigned int cmd, unsigned long arg) {
             kdArg.arg = iFlashType;
             if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
             {
-				logE("[FLASHLIGHTIOC_G_FLASHTYPE] ioctl copy to user failed ~");
+				logI("[FLASHLIGHTIOC_G_FLASHTYPE] ioctl copy to user failed ~");
                 return -EFAULT;
             }
             break;
@@ -324,7 +309,7 @@ static int setFlashDrv(int sensorDev, int strobeId)
 		return -1;
 
 	logI("setFlashDrv sensorDev=%d, strobeId=%d, partId=%d ~",sensorDev, strobeId, partId);
-	
+
 	ppF = &g_pFlashInitFunc[sensorDevIndex][strobeIndex][partIndex];
 	if(sensorDev==e_CAMERA_MAIN_SENSOR)
 	{
@@ -374,7 +359,7 @@ static int setFlashDrv(int sensorDev, int strobeId)
 	}
 	else
 	{
-		logE("set function pointer not found!!");
+		logI("set function pointer not found!!");
 		return -1;
 	}
 	return 0;
@@ -487,7 +472,7 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
             kdArg.arg = vTemp;
             if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
 			{
-				logE("[FLASH_IOC_IS_CHARGER_IN] ioctl copy to user failed ~");
+				logI("[FLASH_IOC_IS_CHARGER_IN] ioctl copy to user failed ~");
 				return -EFAULT;
 			}
             break;
@@ -497,7 +482,7 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
             kdArg.arg = vTemp;
             if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
 			{
-				logE("[FLASH_IOC_IS_CHARGER_IN] ioctl copy to user failed ~");
+				logI("[FLASH_IOC_IS_CHARGER_IN] ioctl copy to user failed ~");
 				return -EFAULT;
 			}
             break;
@@ -509,12 +494,11 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
                     isLow=1;
                 logI("FLASH_IOC_IS_LOW_POWER %d %d %d",gLowPowerPer,gLowPowerVbat,isLow);
                 kdArg.arg = isLow;
-                if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
-    			{
-    				logE("[FLASH_IOC_IS_LOW_POWER] ioctl copy to user failed ~");
-    				return -EFAULT;
-    			}
-		    }
+		if (copy_to_user((void __user *) arg , (void *)&kdArg , sizeof(kdStrobeDrvArg))) {
+				logI("[FLASH_IOC_IS_LOW_POWER] ioctl copy to user failed ~");
+				return -EFAULT;
+			}
+		}
 			break;
 
         case FLASH_IOC_LOW_POWER_DETECT_START:
@@ -522,15 +506,15 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
             gLowBatDuty[sensorDevIndex][strobeIndex]=kdArg.arg;
             break;
 
-        case FLASH_IOC_LOW_POWER_DETECT_END:
-   	        logI("FLASH_IOC_LOW_POWER_DETECT_END");
-   	        gLowBatDuty[sensorDevIndex][strobeIndex]=-1;
+	case FLASH_IOC_LOW_POWER_DETECT_END:
+		logI("FLASH_IOC_LOW_POWER_DETECT_END");
+		gLowBatDuty[sensorDevIndex][strobeIndex] = -1;
             break;
         case FLASHLIGHTIOC_X_SET_DRIVER:
             i4RetValue = setFlashDrv(kdArg.sensorDev,  kdArg.strobeId);
             break;
 		case FLASH_IOC_GET_PART_ID:
-       	case FLASH_IOC_GET_MAIN_PART_ID:
+	case FLASH_IOC_GET_MAIN_PART_ID:
 		case FLASH_IOC_GET_SUB_PART_ID:
 		case FLASH_IOC_GET_MAIN2_PART_ID:
 			{
@@ -540,7 +524,7 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 				kdArg.arg = partId;
 				if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
 				{
-					logE("[FLASH_IOC_GET_PART_ID] ioctl copy to user failed ~");
+					logI("[FLASH_IOC_GET_PART_ID] ioctl copy to user failed ~");
 					return -EFAULT;
 				}
 				logI("FLASH_IOC_GET_PART_ID line=%d partId=%d",__LINE__,partId);
@@ -558,20 +542,12 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 				}
 				else
 				{
-					logE("[FLASH_IOC_UNINIT] function pointer is wrong ~");
+					logI("[FLASH_IOC_UNINIT] function pointer is wrong ~");
 				}
 			}
 			break;
-		case FLASH_IOC_GET_FLASH_DRIVER_NAME_ID://ADD BY LCSH LVXIAOLIANG FOR DUAL FLASH
-			vTemp=e_FLASH_DRIVER_OTHERS; 
-			kdArg.arg = vTemp;
-			logI("FLASH_IOC_GET_FLASH_DRIVER_NAME_ID r=%d\n",vTemp);
-			if(copy_to_user((void __user *) arg , (void*)&kdArg , sizeof(kdStrobeDrvArg)))
-			{
-				logE("[FLASH_IOC_GET_FLASH_DRIVER_NAME_ID] ioctl copy to user failed ~");
-				return -EFAULT;
-			}
-    	case FLASH_IOC_GET_PRE_ON_TIME_MS:
+		case FLASH_IOC_GET_FLASH_DRIVER_NAME_ID:
+	case FLASH_IOC_GET_PRE_ON_TIME_MS:
 			{
 				FLASHLIGHT_FUNCTION_STRUCT *pF;
 				pF = g_pFlashInitFunc[sensorDevIndex][strobeIndex][partIndex];
@@ -581,10 +557,10 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 				}
 				else
 				{
-					logE("[FLASH_IOC_GET_PRE_ON_TIME_MS] function pointer is wrong ~");
+					logI("[FLASH_IOC_GET_PRE_ON_TIME_MS] function pointer is wrong ~");
 				}
 			}
-    		break;
+		break;
 		default :
 			{
 				FLASHLIGHT_FUNCTION_STRUCT *pF;
@@ -595,10 +571,10 @@ static long flashlight_ioctl_core(struct file *file, unsigned int cmd, unsigned 
 				}
 				else
 				{
-					logE("[default] function pointer is wrong ~");
+					logI("[default] function pointer is wrong ~");
 				}
 			}
-    		break;
+		break;
     }
     return i4RetValue;
 }
@@ -763,7 +739,7 @@ static int flashlight_probe(struct platform_device *dev)
 #ifdef ALLOC_DEVNO
     ret = alloc_chrdev_region(&flashlight_devno, 0, 1, FLASHLIGHT_DEVNAME);
     if (ret) {
-        logE("[flashlight_probe] alloc_chrdev_region fail: %d ~", ret);
+	logI("[flashlight_probe] alloc_chrdev_region fail: %d ~", ret);
         goto flashlight_probe_error;
     } else {
         logI("[flashlight_probe] major: %d, minor: %d ~", MAJOR(flashlight_devno), MINOR(flashlight_devno));
@@ -772,14 +748,14 @@ static int flashlight_probe(struct platform_device *dev)
     flashlight_cdev.owner = THIS_MODULE;
     err = cdev_add(&flashlight_cdev, flashlight_devno, 1);
     if (err) {
-        logE("[flashlight_probe] cdev_add fail: %d ~", err);
+	logI("[flashlight_probe] cdev_add fail: %d ~", err);
         goto flashlight_probe_error;
     }
 #else
     #define FLASHLIGHT_MAJOR 242
     ret = register_chrdev(FLASHLIGHT_MAJOR, FLASHLIGHT_DEVNAME, &flashlight_fops);
     if (ret != 0) {
-        logE("[flashlight_probe] Unable to register chardev on major=%d (%d) ~", FLASHLIGHT_MAJOR, ret);
+	logI("[flashlight_probe] Unable to register chardev on major=%d (%d) ~", FLASHLIGHT_MAJOR, ret);
         return ret;
     }
     flashlight_devno = MKDEV(FLASHLIGHT_MAJOR, 0);
@@ -788,13 +764,13 @@ static int flashlight_probe(struct platform_device *dev)
 
     flashlight_class = class_create(THIS_MODULE, "flashlightdrv");
     if (IS_ERR(flashlight_class)) {
-        logE("[flashlight_probe] Unable to create class, err = %d ~", (int)PTR_ERR(flashlight_class));
+	logI("[flashlight_probe] Unable to create class, err = %d ~", (int)PTR_ERR(flashlight_class));
         goto flashlight_probe_error;
     }
 
     flashlight_device = device_create(flashlight_class, NULL, flashlight_devno, NULL, FLASHLIGHT_DEVNAME);
     if(NULL == flashlight_device){
-        logE("[flashlight_probe] device_create fail ~");
+	logI("[flashlight_probe] device_create fail ~");
         goto flashlight_probe_error;
     }
 
@@ -863,13 +839,13 @@ static int __init flashlight_init(void)
 
 	ret = platform_device_register (&flashlight_platform_device);
 	if (ret) {
-        logE("[flashlight_probe] platform_device_register fail ~");
-        return ret;
+		logI("[flashlight_probe] platform_device_register fail ~");
+		return ret;
 	}
 
     ret = platform_driver_register(&flashlight_platform_driver);
 	if(ret){
-		logE("[flashlight_probe] platform_driver_register fail ~");
+		logI("[flashlight_probe] platform_driver_register fail ~");
 		return ret;
 	}
 

@@ -6,15 +6,18 @@
 
 #ifdef BUILD_LK
 	#include <platform/upmu_common.h>
+	#include <platform/upmu_hw.h>
 	#include <platform/mt_gpio.h>
 	#include <platform/mt_i2c.h> 
 	#include <platform/mt_pmic.h>
 	#include <string.h>
-#elif defined(BUILD_UBOOT)
-    #include <asm/arch/mt_gpio.h>
 #else
-	#include <mach/mt_pm_ldo.h>
-    #include <mach/mt_gpio.h>
+	#include <mach/mt_pm_ldo.h>	/* hwPowerOn */
+	#include <mach/upmu_common.h>
+	#include <mach/upmu_sw.h>
+	#include <mach/upmu_hw.h>
+
+	#include <mach/mt_gpio.h>
 #endif
 #include <cust_gpio_usage.h>
 #ifndef CONFIG_FPGA_EARLY_PORTING
@@ -58,30 +61,30 @@ static LCM_UTIL_FUNCS lcm_util;
  *****************************************************************************/
 #ifndef CONFIG_FPGA_EARLY_PORTING
 #define NT_I2C_BUSNUM  I2C_I2C_LCD_BIAS_CHANNEL//for I2C channel 0
-#define I2C_ID_NAME "nt50358"
+#define I2C_ID_NAME "tps65132"
 #define NT_ADDR 0x3E
 /***************************************************************************** 
  * GLobal Variable
  *****************************************************************************/
-static struct i2c_board_info __initdata nt50358_board_info = {I2C_BOARD_INFO(I2C_ID_NAME, NT_ADDR)};
-static struct i2c_client *nt50358_i2c_client = NULL;
+static struct i2c_board_info __initdata tps65132_board_info = {I2C_BOARD_INFO(I2C_ID_NAME, NT_ADDR)};
+static struct i2c_client *tps65132_i2c_client = NULL;
 
 
 /***************************************************************************** 
  * Function Prototype
  *****************************************************************************/ 
-static int nt50358_probe(struct i2c_client *client, const struct i2c_device_id *id);
-static int nt50358_remove(struct i2c_client *client);
+static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id *id);
+static int tps65132_remove(struct i2c_client *client);
 /***************************************************************************** 
  * Data Structure
  *****************************************************************************/
 
- struct nt50358_dev	{	
+ struct tps65132_dev	{	
 	struct i2c_client	*client;
 	
 };
 
-static const struct i2c_device_id nt50358_id[] = {
+static const struct i2c_device_id tps65132_id[] = {
 	{ I2C_ID_NAME, 0 },
 	{ }
 };
@@ -89,14 +92,14 @@ static const struct i2c_device_id nt50358_id[] = {
 //#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36))
 //static struct i2c_client_address_data addr_data = { .forces = forces,};
 //#endif
-static struct i2c_driver nt50358_iic_driver = {
-	.id_table	= nt50358_id,
-	.probe		= nt50358_probe,
-	.remove		= nt50358_remove,
+static struct i2c_driver tps65132_iic_driver = {
+	.id_table	= tps65132_id,
+	.probe		= tps65132_probe,
+	.remove		= tps65132_remove,
 	//.detect		= mt6605_detect,
 	.driver		= {
 		.owner	= THIS_MODULE,
-		.name	= "nt50358",
+		.name	= "tps65132",
 	},
  
 };
@@ -109,33 +112,33 @@ static struct i2c_driver nt50358_iic_driver = {
 /***************************************************************************** 
  * Function
  *****************************************************************************/ 
-static int nt50358_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {  
-	printk( "nt50358_iic_probe\n");
-	printk("NT: info==>name=%s addr=0x%x\n",client->name,client->addr);
-	nt50358_i2c_client  = client;		
+	pr_debug( "tps65132_iic_probe\n");
+	pr_debug("NT: info==>name=%s addr=0x%x\n",client->name,client->addr);
+	tps65132_i2c_client  = client;		
 	return 0;      
 }
 
 
-static int nt50358_remove(struct i2c_client *client)
+static int tps65132_remove(struct i2c_client *client)
 {  	
-	printk( "nt50358_remove\n");
-	nt50358_i2c_client = NULL;
+	pr_debug( "tps65132_remove\n");
+	tps65132_i2c_client = NULL;
 	i2c_unregister_device(client);
 	return 0;
 }
 
-static int nt50358_write_bytes(unsigned char addr, unsigned char value)
+static int tps65132_write_bytes(unsigned char addr, unsigned char value)
 {	
 	int ret = 0;
-	struct i2c_client *client = nt50358_i2c_client;
+	struct i2c_client *client = tps65132_i2c_client;
 	char write_data[2]={0};	
 	write_data[0]= addr;
 	write_data[1] = value;
     ret=i2c_master_send(client, write_data, 2);
 	if(ret<0)
-	printk("nt50358 write data fail !!\n");	
+	pr_debug("tps65132 write data fail !!\n");	
 	return ret ;
 }
 
@@ -143,29 +146,29 @@ static int nt50358_write_bytes(unsigned char addr, unsigned char value)
  * module load/unload record keeping
  */
 
-static int __init nt50358_iic_init(void)
+static int __init tps65132_iic_init(void)
 {
 
-   printk( "nt50358_iic_init\n");
-   i2c_register_board_info(NT_I2C_BUSNUM, &nt50358_board_info, 1);
-   printk( "nt50358_iic_init2\n");
-   i2c_add_driver(&nt50358_iic_driver);
-   printk( "nt50358_iic_init success\n");	
+   pr_debug( "tps65132_iic_init\n");
+   i2c_register_board_info(NT_I2C_BUSNUM, &tps65132_board_info, 1);
+   pr_debug( "tps65132_iic_init2\n");
+   i2c_add_driver(&tps65132_iic_driver);
+   pr_debug( "tps65132_iic_init success\n");	
    return 0;
 }
 
-static void __exit nt50358_iic_exit(void)
+static void __exit tps65132_iic_exit(void)
 {
-  printk( "nt50358_iic_exit\n");
-  i2c_del_driver(&nt50358_iic_driver);  
+  pr_debug( "tps65132_iic_exit\n");
+  i2c_del_driver(&tps65132_iic_driver);  
 }
 
 
-module_init(nt50358_iic_init);
-module_exit(nt50358_iic_exit);
+module_init(tps65132_iic_init);
+module_exit(tps65132_iic_exit);
 
 MODULE_AUTHOR("Xiaokuan Shi");
-MODULE_DESCRIPTION("MTK NT50358 I2C Driver");
+MODULE_DESCRIPTION("MTK TPS65132 I2C Driver");
 MODULE_LICENSE("GPL"); 
 #endif
 #endif
@@ -175,10 +178,17 @@ static const unsigned char LCD_MODULE_ID = 0x01; //  haobing modified 2013.07.11
 // ---------------------------------------------------------------------------
 //  Local Constants
 // ---------------------------------------------------------------------------
-#define LCM_DSI_CMD_MODE									1
+#define LCM_DSI_CMD_MODE									
+#ifdef CONFIG_FPGA_EARLY_PORTING
+#define FRAME_WIDTH  										(480)
+#define FRAME_HEIGHT 										(800)
+#else
 #define FRAME_WIDTH  										(1080)
 #define FRAME_HEIGHT 										(1920)
+#endif
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #define GPIO_65132_EN GPIO_LCD_BIAS_ENP_PIN
+#endif
 
 #define REGFLAG_DELAY             								0xFC
 #define REGFLAG_UDELAY             								0xFB
@@ -258,10 +268,7 @@ static void push_table(struct LCM_setting_table *table, unsigned int count, unsi
         switch (cmd) {
 
             case REGFLAG_DELAY :
-                if(table[i].count <= 10)
-                    MDELAY(table[i].count);
-                else
-                    MDELAY(table[i].count);
+                MDELAY(table[i].count);
                 break;
 				
 			case REGFLAG_UDELAY :
@@ -296,7 +303,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->width  = FRAME_WIDTH;
 	params->height = FRAME_HEIGHT;
 
-#if (LCM_DSI_CMD_MODE)
+#ifdef LCM_DSI_CMD_MODE
 	params->dsi.mode   = CMD_MODE;
 	params->dsi.switch_mode = SYNC_PULSE_VDO_MODE;
 #else
@@ -309,7 +316,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 	/* Command mode setting */
 	params->dsi.LANE_NUM				= LCM_FOUR_LANE;
 	//The following defined the fomat for data coming from LCD engine.
-	params->dsi.data_format.color_order 	= LCM_COLOR_ORDER_RGB;
+	params->dsi.data_format.color_order 	= LCM_DSI_FORMAT_RGB888;
 	params->dsi.data_format.trans_seq   	= LCM_DSI_TRANS_SEQ_MSB_FIRST;
 	params->dsi.data_format.padding     	= LCM_DSI_PADDING_ON_LSB;
 	params->dsi.data_format.format      		= LCM_DSI_FORMAT_RGB888;
@@ -331,10 +338,16 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
     	//params->dsi.ssc_disable							= 1;
 
-#if (LCM_DSI_CMD_MODE)
+#ifndef CONFIG_FPGA_EARLY_PORTING
+#ifdef LCM_DSI_CMD_MODE
 	params->dsi.PLL_CLOCK = 500; //this value must be in MTK suggested table
 #else
-	params->dsi.PLL_CLOCK = 450; //this value must be in MTK suggested table
+	params->dsi.PLL_CLOCK = 400; //this value must be in MTK suggested table
+#endif
+#else
+	params->dsi.pll_div1 = 0;
+	params->dsi.pll_div2 = 0;
+	params->dsi.fbk_div = 0x1;
 #endif
 
 	params->dsi.clk_lp_per_line_enable = 0;
@@ -346,10 +359,11 @@ static void lcm_get_params(LCM_PARAMS *params)
 }
 
 #ifdef BUILD_LK
-#define NT50358_SLAVE_ADDR_WRITE  0x7C  
-static struct mt_i2c_t NT50358_i2c;
+#ifndef CONFIG_FPGA_EARLY_PORTING
+#define TPS65132_SLAVE_ADDR_WRITE  0x7C  
+static struct mt_i2c_t tps65132_i2c;
 
-static int NT50358_write_byte(kal_uint8 addr, kal_uint8 value)
+static int tps65132_write_byte(kal_uint8 addr, kal_uint8 value)
 {
     kal_uint32 ret_code = I2C_OK;
     kal_uint8 write_data[2];
@@ -358,51 +372,66 @@ static int NT50358_write_byte(kal_uint8 addr, kal_uint8 value)
     write_data[0]= addr;
     write_data[1] = value;
 
-    NT50358_i2c.id = I2C_I2C_LCD_BIAS_CHANNEL;//I2C2;
+    tps65132_i2c.id = I2C_I2C_LCD_BIAS_CHANNEL;//I2C2;
     /* Since i2c will left shift 1 bit, we need to set FAN5405 I2C address to >>1 */
-    NT50358_i2c.addr = (NT50358_SLAVE_ADDR_WRITE >> 1);
-    NT50358_i2c.mode = ST_MODE;
-    NT50358_i2c.speed = 100;
+    tps65132_i2c.addr = (TPS65132_SLAVE_ADDR_WRITE >> 1);
+    tps65132_i2c.mode = ST_MODE;
+    tps65132_i2c.speed = 100;
     len = 2;
 
-    ret_code = i2c_write(&NT50358_i2c, write_data, len);
+    ret_code = i2c_write(&tps65132_i2c, write_data, len);
     //printf("%s: i2c_write: ret_code: %d\n", __func__, ret_code);
 
     return ret_code;
 }
+#else
+  
+//	extern int mt8193_i2c_write(u16 addr, u32 data);
+//	extern int mt8193_i2c_read(u16 addr, u32 *data);
+	
+//	#define tps65132_write_byte(add, data)  mt8193_i2c_write(add, data)
+	//#define tps65132_read_byte(add)  mt8193_i2c_read(add)
+  
+#endif
 #endif
 
 
 static void lcm_init_power(void)
 {
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #ifdef BUILD_LK
-	mt6325_upmu_set_rg_vgp1_en(1);
+	pmic_set_register_value(PMIC_RG_VGP1_EN,1);
 #else
-	printk("%s, begin\n", __func__);
-	hwPowerOn(MT6325_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, begin\n", __func__);
+	hwPowerOn(MT6328_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
+	pr_debug("%s, end\n", __func__);
+#endif
 #endif
 }
 
 static void lcm_suspend_power(void)
 {
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #ifdef BUILD_LK
-	mt6325_upmu_set_rg_vgp1_en(0);
+	pmic_set_register_value(PMIC_RG_VGP1_EN,0);
 #else
-	printk("%s, begin\n", __func__);
-	hwPowerDown(MT6325_POWER_LDO_VGP1, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, begin\n", __func__);
+	hwPowerDown(MT6328_POWER_LDO_VGP1, "LCM_DRV");	
+	pr_debug("%s, end\n", __func__);
+#endif
 #endif
 }
 
 static void lcm_resume_power(void)
 {
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #ifdef BUILD_LK
-	mt6325_upmu_set_rg_vgp1_en(1);
+	pmic_set_register_value(PMIC_RG_VGP1_EN,1);
 #else
-	printk("%s, begin\n", __func__);
-	hwPowerOn(MT6325_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, begin\n", __func__);
+	hwPowerOn(MT6328_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
+	pr_debug("%s, end\n", __func__);
+#endif
 #endif
 }
 
@@ -418,35 +447,36 @@ static void lcm_init(void)
 	mt_set_gpio_mode(GPIO_65132_EN, GPIO_MODE_00);
 	mt_set_gpio_dir(GPIO_65132_EN, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO_65132_EN, GPIO_OUT_ONE);
+	MDELAY(10);
 
 #ifdef BUILD_LK
-	ret=NT50358_write_byte(cmd,data);
+	ret=tps65132_write_byte(cmd,data);
     if(ret)    	
-    dprintf(0, "[LK]r63417----nt50358----cmd=%0x--i2c write error----\n",cmd);    	
+    dprintf(0, "[LK]r63417----tps65132----cmd=%0x--i2c write error----\n",cmd);    	
 	else
-	dprintf(0, "[LK]r63417----nt50358----cmd=%0x--i2c write success----\n",cmd);    		
+	dprintf(0, "[LK]r63417----tps65132----cmd=%0x--i2c write success----\n",cmd);    		
 #else
-	ret=nt50358_write_bytes(cmd,data);
+	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63417----nt50358---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63417----tps65132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63417----nt50358---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63417----tps65132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 	
 	cmd=0x01;
 	data=0x0A;
 #ifdef BUILD_LK
-	ret=NT50358_write_byte(cmd,data);
+	ret=tps65132_write_byte(cmd,data);
     if(ret)    	
-	    dprintf(0, "[LK]r63417----nt50358----cmd=%0x--i2c write error----\n",cmd);    	
+	    dprintf(0, "[LK]r63417----tps65132----cmd=%0x--i2c write error----\n",cmd);    	
 	else
-		dprintf(0, "[LK]r63417----nt50358----cmd=%0x--i2c write success----\n",cmd);   
+		dprintf(0, "[LK]r63417----tps65132----cmd=%0x--i2c write success----\n",cmd);   
 #else
-	ret=nt50358_write_bytes(cmd,data);
+	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]r63417----nt50358---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]r63417----tps65132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]r63417----nt50358---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]r63417----tps65132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 #endif
 
@@ -532,7 +562,7 @@ static unsigned int lcm_compare_id(void)
 #ifdef BUILD_LK
 		dprintf(0, "%s, LK r63417 debug: r63417 id = 0x%08x\n", __func__, id);
 #else
-		printk("%s, kernel r63417 horse debug: r63417 id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel r63417 horse debug: r63417 id = 0x%08x\n", __func__, id);
 #endif
 
 	if(id == LCM_ID_R63417)
@@ -558,12 +588,12 @@ static unsigned int lcm_esd_check(void)
 
 	if(buffer[0] != 0x24)
 	{
-		printk("[LCM ERROR] [0x53]=0x%02x\n", buffer[0]);
+		pr_debug("[LCM ERROR] [0x53]=0x%02x\n", buffer[0]);
 		return TRUE;
 	}
 	else
 	{
-		printk("[LCM NORMAL] [0x53]=0x%02x\n", buffer[0]);
+		pr_debug("[LCM NORMAL] [0x53]=0x%02x\n", buffer[0]);
 		return FALSE;
 	}
 #else
@@ -585,7 +615,7 @@ unsigned int lcm_ata_check(unsigned char *buffer)
 
 	unsigned int data_array[3];
 	unsigned char read_buf[4];
-	printk("ATA check size = 0x%x,0x%x,0x%x,0x%x\n",x0_MSB,x0_LSB,x1_MSB,x1_LSB);
+	pr_debug("ATA check size = 0x%x,0x%x,0x%x,0x%x\n",x0_MSB,x0_LSB,x1_MSB,x1_LSB);
 	data_array[0]= 0x0005390A;//HS packet
 	data_array[1]= (x1_MSB<<24)|(x0_LSB<<16)|(x0_MSB<<8)|0x2a;
 	data_array[2]= (x1_LSB);
@@ -624,7 +654,7 @@ static void lcm_setbacklight(unsigned int level)
 #ifdef BUILD_LK
 	dprintf(0,"%s,lk r63417 backlight: level = %d\n", __func__, level);
 #else
-	printk("%s, kernel r63417 backlight: level = %d\n", __func__, level);
+	pr_debug("%s, kernel r63417 backlight: level = %d\n", __func__, level);
 #endif
 	// Refresh value of backlight level.
 	lcm_backlight_level_setting[0].para_list[0] = level;

@@ -3359,18 +3359,27 @@ static s8 gtp_enter_doze(struct i2c_client *client)
 {
     s8 ret = -1;
     s8 retry = 0;
-    u8 i2c_control_buf[3] = {(u8)(GTP_REG_SLEEP >> 8), (u8)GTP_REG_SLEEP, 8};
+    u8 i2c_control_buf[3] = {(u8)(GTP_REG_SLEEP >> 8), (u8)GTP_REG_SLEEP, 0x8};
 
     GTP_DEBUG_FUNC();
-#if GTP_DBL_CLK_WAKEUP
-    i2c_control_buf[2] = 0x09;
-#endif
 
     GTP_DEBUG("entering doze mode...");
+
+    // Enter charger mode
+    i2c_control_buf[2] = 0x6;
+    ret = gtp_i2c_write(client, i2c_control_buf, 3);
+    if (ret < 0)
+    {
+        GTP_DEBUG("failed to set doze flag into 0x8046, %d", retry);
+        return ret;
+    }
+    msleep(30);
+    
     while(retry++ < 5)
     {
         i2c_control_buf[0] = 0x80;
         i2c_control_buf[1] = 0x46;
+        i2c_control_buf[2] = 0x8;
         ret = gtp_i2c_write(client, i2c_control_buf, 3);
         if (ret < 0)
         {
@@ -3679,6 +3688,8 @@ void tpd_enter_doze(void)
 		ipi_pkt.cmd = IPI_COMMAND_AS_CUST_PARAMETER;
 	    ipi_pkt.param.tcs.i2c_num = TPD_I2C_NUMBER;
 	    ipi_pkt.param.tcs.int_num = CUST_EINT_TOUCH_PANEL_NUM;
+	    ipi_pkt.param.tcs.io_int = GTP_INT_PORT;
+        ipi_pkt.param.tcs.io_rst = GTP_RST_PORT;
 
 		GTP_INFO("[TOUCH]SEND CUST command :%d ", IPI_COMMAND_AS_CUST_PARAMETER);
 
@@ -3688,7 +3699,8 @@ void tpd_enter_doze(void)
 	        GTP_ERROR(" IPI cmd failed (%d)\n", ipi_pkt.cmd);        
 	    }
 		msleep(5); // delay added between continuous command
-		scp_init_flag = 1;
+		//Workaround if suffer MD32 reset
+        //scp_init_flag = 1;
 	}
 
 	if (tpd_scp_doze_en)
@@ -3701,14 +3713,31 @@ void tpd_enter_doze(void)
 	    }
 	    else
 	    {
+	        int retry = 5;
+            {
+                //check doze mode
+                u8 i2c_control_buf[3] = {(u8)(GTP_REG_SLEEP >> 8), (u8)GTP_REG_SLEEP, 0};
+                gtp_i2c_read(i2c_client_point, i2c_control_buf, sizeof(i2c_control_buf));
+                GTP_INFO("========================>0x%x", i2c_control_buf[2]);
+
+            }
+        
+            msleep(1);
 	        Touch_IPI_Packet ipi_pkt={.cmd = IPI_COMMAND_AS_ENABLE_GESTURE, .param.data = 1};
-	        md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-	    }
-		ret = release_md32_semaphore(SEMAPHORE_TOUCH);
-    	if (ret < 0)
+            do {
+                if (md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 1) == DONE) break;
+                msleep(1);
+                GTP_DEBUG("==>retry=%d", retry);
+            } while(retry--);
+
+            if (retry <= 0) GTP_ERROR("########################## md32_ipi_send failed retry=%d", retry);
+
+            while(release_md32_semaphore(SEMAPHORE_TOUCH) <= 0)
     	{
         	GTP_ERROR("GTP release md32 sem failed\n");
     	}
+
+	    }
 		#ifdef CONFIG_OF_TOUCH
 		disable_irq(touch_irq);
 		#else

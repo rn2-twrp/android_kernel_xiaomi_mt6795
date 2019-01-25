@@ -1,4 +1,4 @@
-/* include/linux/ist8303.h - IST8303 compass driver
+/* include/linux/ist8301.h - IST8303 compass driver
  *
  * Copyright (C) 2009 Technology Inc.
  * Author: Minghung.Chou

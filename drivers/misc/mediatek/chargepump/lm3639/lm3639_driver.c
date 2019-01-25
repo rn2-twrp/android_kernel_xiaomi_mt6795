@@ -9,7 +9,7 @@
 
 /* file lm3639.c
    brief This file contains all function implementations for the lm3639 in linux
-   this source file refer to MT6572 platform 
+   this source file refer to MT6572 platform
 */
 
 #include <linux/module.h>
@@ -44,10 +44,11 @@
 #define LCD_LED_MAX 0x7F
 #define LCD_LED_MIN 0
 
-#define DEFAULT_BRIGHTNESS 0x73 //for 20mA
-#define LM3639_MIN_VALUE_SETTINGS 20 /* value leds_brightness_set*/
-#define LM3639_MAX_VALUE_SETTINGS 255 /* value leds_brightness_set*/
-#define MIN_MAX_SCALE(x) (((x)<LM3639_MIN_VALUE_SETTINGS) ? LM3639_MIN_VALUE_SETTINGS : (((x)>LM3639_MAX_VALUE_SETTINGS) ? LM3639_MAX_VALUE_SETTINGS:(x)))
+#define DEFAULT_BRIGHTNESS 0x73	/* for 20mA */
+#define LM3639_MIN_VALUE_SETTINGS 20	/* value leds_brightness_set */
+#define LM3639_MAX_VALUE_SETTINGS 255	/* value leds_brightness_set */
+#define MIN_MAX_SCALE(x) (((x) < LM3639_MIN_VALUE_SETTINGS) ? LM3639_MIN_VALUE_SETTINGS \
+: (((x) > LM3639_MAX_VALUE_SETTINGS) ? LM3639_MAX_VALUE_SETTINGS:(x)))
 
 #define BACKLIHGT_NAME "charge-pump"
 
@@ -59,30 +60,27 @@
 
 #define LM3639_DEV_NAME "charge-pump"
 
-#define CPD_TAG                  "[ChargePump] "
-#define CPD_FUN(f)               printk(CPD_TAG"%s\n", __FUNCTION__)
-#define CPD_ERR(fmt, args...)    printk(CPD_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
-#define CPD_LOG(fmt, args...)    printk(CPD_TAG fmt, ##args)
+/* I2C variable */
+static struct i2c_client *new_client;
+static const struct i2c_device_id lm3639_i2c_id[] = { {LM3639_DEV_NAME, 0}, {} };
+static struct i2c_board_info i2c_lm3639 __initdata = { I2C_BOARD_INFO("charge-pump", 0x39) };
 
-// I2C variable
-static struct i2c_client *new_client = NULL;
-static const struct i2c_device_id lm3639_i2c_id[] = {{LM3639_DEV_NAME,0},{}};
-static struct i2c_board_info __initdata i2c_lm3639={ I2C_BOARD_INFO("charge-pump", 0x39)};
-
-// Flash control
+/* Flash control */
 unsigned char strobe_ctrl;
 unsigned char flash_ctrl;
 unsigned char flash_status;
-// Gamma 2.2 Table
+/* Gamma 2.2 Table */
 unsigned char bright_arr[] = {
 	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12,
 	13, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 19, 19, 20, 21, 21, 22, 23, 24,
 	24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 38, 39, 40, 41, 43, 44, 45,
 	47, 48, 49, 51, 52, 54, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 73, 74, 76, 78,
-	80, 82, 84, 86, 89, 91, 93, 95, 97, 100, 102, 104, 106, 109, 111, 114, 116, 119, 121, 124, 127};
+	80, 82, 84, 86, 89, 91, 93, 95, 97, 100, 102, 104, 106, 109, 111, 114, 116, 119, 121, 124,
+	    127
+};
 
-static unsigned char current_brightness = 0;
-static unsigned char is_suspend = 0;
+static unsigned char current_brightness;
+static unsigned char is_suspend;
 
 struct semaphore lm3639_lock;
 
@@ -90,38 +88,36 @@ struct semaphore lm3639_lock;
 #define LM3639_MAX_RETRY_I2C_XFER (100)
 #define LM3639_I2C_WRITE_DELAY_TIME 1
 
-typedef struct
-{
-    kal_bool       bat_exist;
-    kal_bool       bat_full;
-    kal_bool       bat_low;
-    UINT32      bat_charging_state;
-    UINT32      bat_vol;
-    kal_bool     charger_exist;
-    UINT32      pre_charging_current;
-    UINT32      charging_current;
-    INT32      charger_vol;
-    UINT32       charger_protect_status;
-    UINT32      ISENSE;
-    UINT32      ICharging;
-    INT32       temperature;
-    UINT32      total_charging_time;
-    UINT32      PRE_charging_time;
-    UINT32      CC_charging_time;
-    UINT32      TOPOFF_charging_time;
-    UINT32      POSTFULL_charging_time;
-    UINT32       charger_type;
-    UINT32       PWR_SRC;
-    UINT32       SOC;
-    UINT32       ADC_BAT_SENSE;
-    UINT32       ADC_I_SENSE;
+typedef struct {
+	kal_bool bat_exist;
+	kal_bool bat_full;
+	kal_bool bat_low;
+	UINT32 bat_charging_state;
+	UINT32 bat_vol;
+	kal_bool charger_exist;
+	UINT32 pre_charging_current;
+	UINT32 charging_current;
+	INT32 charger_vol;
+	UINT32 charger_protect_status;
+	UINT32 ISENSE;
+	UINT32 ICharging;
+	INT32 temperature;
+	UINT32 total_charging_time;
+	UINT32 PRE_charging_time;
+	UINT32 CC_charging_time;
+	UINT32 TOPOFF_charging_time;
+	UINT32 POSTFULL_charging_time;
+	UINT32 charger_type;
+	UINT32 PWR_SRC;
+	UINT32 SOC;
+	UINT32 ADC_BAT_SENSE;
+	UINT32 ADC_I_SENSE;
 } PMU_ChargerStruct;
 
 extern PMU_ChargerStruct BMT_status;
 
 /* i2c read routine for API*/
-static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr,
-		u8 *data, u8 len)
+static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr, u8 *data, u8 len)
 {
 #if !defined BMA_USE_BASIC_I2C_FUNC
 	s32 dummy;
@@ -131,25 +127,18 @@ static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr,
 	while (0 != len--) {
 #ifdef BMA_SMBUS
 		dummy = i2c_smbus_read_byte_data(client, reg_addr);
-		if (dummy < 0) {
-			CPD_ERR("i2c bus read error");
+		if (dummy < 0)
 			return -1;
-		}
-		*data = (u8)(dummy & 0xff);
+
+		*data = (u8) (dummy & 0xff);
 #else
 		dummy = i2c_master_send(client, (char *)&reg_addr, 1);
 		if (dummy < 0)
-		{
-            printk("send dummy is %d", dummy);
 			return -1;
-		}
 
 		dummy = i2c_master_recv(client, (char *)data, 1);
 		if (dummy < 0)
-		{
-            printk("recv dummy is %d", dummy);
 			return -1;
-		}
 #endif
 		reg_addr++;
 		data++;
@@ -164,7 +153,7 @@ static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr,
 		 .flags = 0,
 		 .len = 1,
 		 .buf = &reg_addr,
-		},
+		 },
 
 		{
 		 .addr = client->addr,
@@ -182,7 +171,6 @@ static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr,
 	}
 
 	if (LM3639_MAX_RETRY_I2C_XFER <= retry) {
-		CPD_ERR("I2C xfer error");
 		return -EIO;
 	}
 
@@ -191,8 +179,7 @@ static char lm3639_i2c_read(struct i2c_client *client, u8 reg_addr,
 }
 
 /* i2c write routine for */
-static char lm3639_i2c_write(struct i2c_client *client, u8 reg_addr,
-		u8 *data, u8 len)
+static char lm3639_i2c_write(struct i2c_client *client, u8 reg_addr, u8 *data, u8 len)
 {
 #if !defined BMA_USE_BASIC_I2C_FUNC
 	s32 dummy;
@@ -204,13 +191,13 @@ static char lm3639_i2c_write(struct i2c_client *client, u8 reg_addr,
 		return -1;
 
 	while (0 != len--) {
-		#if 1
+#if 1
 		dummy = i2c_smbus_write_byte_data(client, reg_addr, *data);
 #else
 		buffer[0] = reg_addr;
 		buffer[1] = *data;
 		dummy = i2c_master_send(client, (char *)buffer, 2);
-		#endif
+#endif
 
 		reg_addr++;
 		data++;
@@ -235,8 +222,7 @@ static char lm3639_i2c_write(struct i2c_client *client, u8 reg_addr,
 		buffer[0] = reg_addr;
 		buffer[1] = *data;
 		for (retry = 0; retry < LM3639_MAX_RETRY_I2C_XFER; retry++) {
-			if (i2c_transfer(client->adapter, msg,
-						ARRAY_SIZE(msg)) > 0) {
+			if (i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg)) > 0) {
 				break;
 			} else {
 				mdelay(LM3639_I2C_WRITE_DELAY_TIME);
@@ -249,28 +235,26 @@ static char lm3639_i2c_write(struct i2c_client *client, u8 reg_addr,
 		data++;
 	}
 #endif
-	printk("\n [LM3639] lm3639_i2c_write \n");
 	return 0;
 }
 
 static int lm3639_smbus_read_byte(struct i2c_client *client,
-		unsigned char reg_addr, unsigned char *data)
+				  unsigned char reg_addr, unsigned char *data)
 {
-	return lm3639_i2c_read(client,reg_addr,data,1);
+	return lm3639_i2c_read(client, reg_addr, data, 1);
 }
 
 static int lm3639_smbus_write_byte(struct i2c_client *client,
-		unsigned char reg_addr, unsigned char *data)
+				   unsigned char reg_addr, unsigned char *data)
 {
 	int ret_val = 0;
 	int i = 0;
 
-	ret_val = lm3639_i2c_write(client,reg_addr,data,1);
+	ret_val = lm3639_i2c_write(client, reg_addr, data, 1);
 
-	for ( i = 0; i < 5; i++)
-	{
+	for (i = 0; i < 5; i++) {
 		if (ret_val != 0)
-			lm3639_i2c_write(client,reg_addr,data,1);
+			lm3639_i2c_write(client, reg_addr, data, 1);
 		else
 			return ret_val;
 	}
@@ -278,27 +262,23 @@ static int lm3639_smbus_write_byte(struct i2c_client *client,
 }
 
 static int lm3639_smbus_read_byte_block(struct i2c_client *client,
-		unsigned char reg_addr, unsigned char *data, unsigned char len)
+					unsigned char reg_addr, unsigned char *data,
+					unsigned char len)
 {
-	return lm3639_i2c_read(client,reg_addr,data,len);
+	return lm3639_i2c_read(client, reg_addr, data, len);
 }
 
-bool check_charger_pump_vendor()
+bool check_charger_pump_vendor(void)
 {
-    int err = 0;
-    unsigned char data = 0;
+	int err = 0;
+	unsigned char data = 0;
 
-    err = lm3639_smbus_read_byte(new_client,0x01,&data);
+	err = lm3639_smbus_read_byte(new_client, 0x01, &data);
 
-    if(err < 0)
-        printk(KERN_ERR "%s read charge-pump vendor id fail\n", __func__);
-
-    printk(KERN_INFO "%s vendor is 0x%x\n", __func__, data&0x03);
-
-    if((data&0x03) == 0x03) //Richtek
-        return FALSE;
-    else
-        return TRUE;
+	if ((data & 0x03) == 0x03)	/* Richtek */
+		return FALSE;
+	else
+		return TRUE;
 }
 
 int chargepump_set_backlight_level(unsigned int level)
@@ -307,130 +287,97 @@ int chargepump_set_backlight_level(unsigned int level)
 	unsigned char data1 = 0;
 	unsigned int bright_per = 0;
 
-	printk("\n[LM3639] chargepump_set_backlight_level  [%d]\n",data1);
-
-	if (level == 0) 
-	{
-		printk( "------	 backlight_level suspend-----\n");
+	if (level == 0) {
 		down_interruptible(&lm3639_lock);
-		data1 = 0x00; //backlight2 brightness 0
+		data1 = 0x00;	/* backlight2 brightness 0 */
 		lm3639_smbus_write_byte(new_client, 0x05, &data1);
-		
-        lm3639_smbus_read_byte(new_client, 0x0A, &data1);
-        data1 &= 0x66;
+
+		lm3639_smbus_read_byte(new_client, 0x0A, &data1);
+		data1 &= 0x66;
 
 		lm3639_smbus_write_byte(new_client, 0x0A, &data1);
-		up(&lm3639_lock); 
-		printk( "[LM3639] flash_status = %d\n", flash_status);
-		if( flash_status == 0 ){
-			mt_set_gpio_out(GPIO_LCD_BL_EN,GPIO_OUT_ZERO);
-		}
+		up(&lm3639_lock);
+		if (flash_status == 0)
+			mt_set_gpio_out(GPIO_LCD_BL_EN, GPIO_OUT_ZERO);
 		is_suspend = 1;
-	}
-	else 
-	{
+	} else {
 		level = MIN_MAX_SCALE(level);
-		printk(KERN_ERR "[LM3639] level = %d", level);
-		
-		//Gamma 2.2 Table adapted
-		bright_per = (level - (unsigned int)20) *(unsigned int)100 / (unsigned int)235;
+
+		/* Gamma 2.2 Table adapted */
+		bright_per = (level - (unsigned int)20) * (unsigned int)100 / (unsigned int)235;
 		data = bright_arr[bright_per];
 
-		//printk("[Backlight] %s bright_per = %d, data = %d\n", __func__, bright_per, data);
-
-		if (is_suspend == 1) 
-		{
-			//printk( "------	 backlight_level resume-----\n");
+		if (is_suspend == 1) {
 			is_suspend = 0;
-			mt_set_gpio_out(GPIO_LCD_BL_EN,GPIO_OUT_ONE);
+			mt_set_gpio_out(GPIO_LCD_BL_EN, GPIO_OUT_ONE);
 			mdelay(10);
-			down_interruptible(&lm3639_lock); 
-			if(check_charger_pump_vendor() == FALSE)
-			{
-				data1 = 0x54;//0x37; 
+			down_interruptible(&lm3639_lock);
+			if (check_charger_pump_vendor() == FALSE) {
+				data1 = 0x54;	/* 0x37; */
 				lm3639_smbus_write_byte(new_client, 0x02, &data1);
-				printk("[ChargePump]-Richtek\n");
-			}
-			else
-			{
-				data1 = 0x54;//0x57; 
+			} else {
+				data1 = 0x54;	/* 0x57; */
 				lm3639_smbus_write_byte(new_client, 0x02, &data1);
-				printk("[LM3639]-TI\n");
 			}
 
 			lm3639_smbus_write_byte(new_client, 0x05, &data);
-			printk("[LM3639]-backlight brightness Setting[reg0x05][value:0x%x]\n",data);
-			
-            lm3639_smbus_read_byte(new_client, 0x0A, &data1);
+
+
+			lm3639_smbus_read_byte(new_client, 0x0A, &data1);
 			data1 |= 0x19;
 
 			lm3639_smbus_write_byte(new_client, 0x0A, &data1);
-			up(&lm3639_lock); 
+			up(&lm3639_lock);
 		}
 
-		down_interruptible(&lm3639_lock); 
-        {
-            unsigned char read_data = 0;
-		
-            lm3639_smbus_read_byte(new_client, 0x02, &read_data);
-            printk("[LM3639]-OVP[0x%x]\n",read_data);
-        }
-
-		printk("[LM3639]-backlight Seting[reg0x05][value:0x%x]\n",data);
+		down_interruptible(&lm3639_lock);
 		lm3639_smbus_write_byte(new_client, 0x05, &data);
 		up(&lm3639_lock);
 	}
 	return 0;
 }
 
-static int lm3639_probe(struct i2c_client *client,
-		const struct i2c_device_id *id)
-{   
+static int lm3639_probe(struct i2c_client *client, const struct i2c_device_id *id)
+{
 	new_client = client;
 
-    CPD_FUN();
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		CPD_LOG("i2c_check_functionality error\n");
 		return -1;
 	}
 
-    sema_init(&lm3639_lock, 1);
+	sema_init(&lm3639_lock, 1);
 
-	if (client == NULL) 
-		printk("%s client is NULL\n", __func__);
-	else
-	{
-		printk("%s %p %x %x\n", __func__, client->adapter, client->addr, client->flags);
-	}
 	return 0;
 }
 
 
 static int lm3639_remove(struct i2c_client *client)
 {
-    new_client = NULL;
+	new_client = NULL;
 	return 0;
 }
 
 
-static int __attribute__ ((unused)) lm3639_detect(struct i2c_client *client, int kind, struct i2c_board_info *info) 
-{ 
+static int
+__attribute__ ((unused)) lm3639_detect(struct i2c_client *client, int kind,
+					   struct i2c_board_info *info)
+{
 	return 0;
 }
 
 static struct i2c_driver lm3639_i2c_driver = {
 	.driver = {
-//		.owner	= THIS_MODULE,
-		.name	= LM3639_DEV_NAME,
-	},
-	.probe		= lm3639_probe,
-	.remove		= lm3639_remove,
-//	.detect		= lm3639_detect,
-	.id_table	= lm3639_i2c_id,
-//	.address_data = &lm3639250_i2c_addr_data,
+/* .owner  = THIS_MODULE, */
+		   .name = LM3639_DEV_NAME,
+		   },
+	.probe = lm3639_probe,
+	.remove = lm3639_remove,
+/* .detect         = lm3639_detect, */
+	.id_table = lm3639_i2c_id,
+/* .address_data = &lm3639250_i2c_addr_data, */
 };
 
-static int lm3639_pd_probe(struct platform_device *pdev) 
+static int lm3639_pd_probe(struct platform_device *pdev)
 {
 	mt_set_gpio_mode(GPIO_LCD_BL_EN, GPIO_LCD_BL_EN_M_GPIO);
 	mt_set_gpio_pull_enable(GPIO_LCD_BL_EN, GPIO_PULL_ENABLE);
@@ -442,9 +389,8 @@ static int lm3639_pd_probe(struct platform_device *pdev)
 
 static int __attribute__ ((unused)) lm3639_pd_remove(struct platform_device *pdev)
 {
-    CPD_FUN();
-    i2c_del_driver(&lm3639_i2c_driver);
-    return 0;
+	i2c_del_driver(&lm3639_i2c_driver);
+	return 0;
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -452,206 +398,170 @@ static void lm3639_early_suspend(struct early_suspend *h)
 {
 	int err = 0;
 	unsigned char data;
-	down_interruptible(&lm3639_lock); 
-	data = 0x00; //backlight2 brightness 0
+	down_interruptible(&lm3639_lock);
+	data = 0x00;		/* backlight2 brightness 0 */
 	err = lm3639_smbus_write_byte(new_client, 0x05, &data);
 
-    err = lm3639_smbus_read_byte(new_client, 0x0A, &data);
-    data &= 0x66;
+	err = lm3639_smbus_read_byte(new_client, 0x0A, &data);
+	data &= 0x66;
 
 	err = lm3639_smbus_write_byte(new_client, 0x0A, &data);
-	up(&lm3639_lock); 
-	printk("\n[LM3639] lm3639_early_suspend  [%d]",data);
-	mt_set_gpio_out(GPIO_LCD_BL_EN,GPIO_OUT_ZERO);
+	up(&lm3639_lock);
+	mt_set_gpio_out(GPIO_LCD_BL_EN, GPIO_OUT_ZERO);
 }
 
-void lm3639_flash_strobe_prepare(char OnOff,char ActiveHigh)
+void lm3639_flash_strobe_prepare(char OnOff, char ActiveHigh)
 {
 	int err = 0;
 
-    down_interruptible(&lm3639_lock);
+	down_interruptible(&lm3639_lock);
 
-    err = lm3639_smbus_read_byte(new_client, 0x09, &strobe_ctrl);        
+	err = lm3639_smbus_read_byte(new_client, 0x09, &strobe_ctrl);
 
-    err = lm3639_smbus_read_byte(new_client, 0x0A, &flash_ctrl);
+	err = lm3639_smbus_read_byte(new_client, 0x0A, &flash_ctrl);
 
-    strobe_ctrl &= 0xF3;
-    
-	if(ActiveHigh)
-	{
+	strobe_ctrl &= 0xF3;
+
+	if (ActiveHigh)
 		strobe_ctrl |= 0x20;
-	}
 	else
-	{
 		strobe_ctrl &= 0xDF;
-	}
 
-	if(OnOff == 1)
-	{
-		CPD_LOG("Strobe mode On\n");
-		strobe_ctrl |= 0x10;		
-        flash_ctrl |= 0x66;
-		flash_status = 1;
-		printk( "[LM3639][Strobe] flash_status = %d\n", flash_status);
-    }
-    else if(OnOff == 2)
-    {
-		CPD_LOG("Torch mode On\n");
+	if (OnOff == 1) {
 		strobe_ctrl |= 0x10;
-        flash_ctrl |= 0x62;
+		flash_ctrl |= 0x66;
 		flash_status = 1;
-		printk( "[LM3639][Torch] flash_status = %d\n", flash_status);
-    }
-	else
-	{
-		CPD_LOG("Flash Off\n");
+	} else if (OnOff == 2) {
+		strobe_ctrl |= 0x10;
+		flash_ctrl |= 0x62;
+		flash_status = 1;
+	} else {
 		strobe_ctrl &= 0xEF;
 		flash_ctrl &= 0x99;
 		flash_status = 0;
-		printk( "[LM3639][off] flash_status = %d\n", flash_status);
 	}
 
 	err = lm3639_smbus_write_byte(new_client, 0x09, &strobe_ctrl);
 
-    up(&lm3639_lock);
+	up(&lm3639_lock);
 }
 
-//strobe enable
-void lm3639_flash_strobe_en()
+/* strobe enable */
+void lm3639_flash_strobe_en(void)
 {
 	int err = 0;
-    down_interruptible(&lm3639_lock); 
-	err = lm3639_smbus_write_byte(new_client, 0x0A, &flash_ctrl); 
-    up(&lm3639_lock); 
+	down_interruptible(&lm3639_lock);
+	err = lm3639_smbus_write_byte(new_client, 0x0A, &flash_ctrl);
+	up(&lm3639_lock);
 }
 
-//strobe level
+/* strobe level */
 void lm3639_flash_strobe_level(char level)
 {
 	int err = 0;
-	unsigned char data1=0;
-    unsigned char data2=0;
-    unsigned char torch_level;
-    unsigned char strobe_timeout = 0x1F;
-    down_interruptible(&lm3639_lock); 
+	unsigned char data1 = 0;
+	unsigned char data2 = 0;
+	unsigned char torch_level;
+	unsigned char strobe_timeout = 0x1F;
+	down_interruptible(&lm3639_lock);
 #if 0
-    if( level == 1) 
-    {
-        torch_level = 0x20;
-    }
-    else
-    {
-        torch_level = 0x50;
-    }
-        
-    err = lm3639_smbus_read_byte(new_client, 0x06, &data1);
+	if (level == 1)
+		torch_level = 0x20;
+	else
+		torch_level = 0x50;
 
-	if(31 < level)
-    {    
-		data1= torch_level | 0x0A;
-        strobe_timeout = 0x0F;
-    }
-    else if(level < 0)
-    {
-		data1= torch_level ;
-    }
-    else
-    {
-		data1= torch_level | level; 
-    }
+	err = lm3639_smbus_read_byte(new_client, 0x06, &data1);
+
+	if (31 < level) {
+		data1 = torch_level | 0x0A;
+		strobe_timeout = 0x0F;
+	} else if (level < 0) {
+		data1 = torch_level;
+	} else {
+		data1 = torch_level | level;
+	}
 
 #else
-    torch_level = 0x50;
+	torch_level = 0x50;
 
-    err = lm3639_smbus_read_byte(new_client, 0x06, &data1);
+	err = lm3639_smbus_read_byte(new_client, 0x06, &data1);
 
-    strobe_timeout = 0x0F;
-    if(level < 0)
-        data1= torch_level;
-    else if(level == 1)
-        data1= torch_level | 0x03;
-    else if(level == 2)
-        data1= torch_level | 0x05;
-    else if(level == 3)
-        data1= torch_level | 0x08;
-    else if(level == 4)
-        data1= torch_level | 0x0A;
-    else
-        data1= torch_level | level;
+	strobe_timeout = 0x0F;
+	if (level < 0)
+		data1 = torch_level;
+	else if (level == 1)
+		data1 = torch_level | 0x03;
+	else if (level == 2)
+		data1 = torch_level | 0x05;
+	else if (level == 3)
+		data1 = torch_level | 0x08;
+	else if (level == 4)
+		data1 = torch_level | 0x0A;
+	else
+		data1 = torch_level | level;
 
 #endif
 
 /*
     if(0)
     {
-	    CPD_LOG("Batt temp=%d\n", BMT_status.temperature );
-        
-        torch_level = 0xF0 & data1;
-        level = 0x0F & data1;
-        torch_level = 0xF0 & (torch_level >> 2);
-        level = 0x0F & (level >> 2);
-        
-        data1 = torch_level | level;
+	torch_level = 0xF0 & data1;
+	level = 0x0F & data1;
+	torch_level = 0xF0 & (torch_level >> 2);
+	level = 0x0F & (level >> 2);
+
+	data1 = torch_level | level;
     }
 */
-	CPD_LOG("Flash Level =0x%x\n", data1);
-    err = lm3639_smbus_write_byte(new_client, 0x06, &data1);
-    
-    data2 = 0x40 | strobe_timeout;
-    CPD_LOG("Storbe Timeout =0x%x\n", data2);
-    err |= lm3639_smbus_write_byte(new_client, 0x07, &data2);
-    up(&lm3639_lock); 
+	err = lm3639_smbus_write_byte(new_client, 0x06, &data1);
+
+	data2 = 0x40 | strobe_timeout;
+	err |= lm3639_smbus_write_byte(new_client, 0x07, &data2);
+	up(&lm3639_lock);
 }
 
 static void lm3639_late_resume(struct early_suspend *h)
 {
 	int err = 0;
 	unsigned char data1;
-	
+
 	mt_set_gpio_out(GPIO_LCD_BL_EN, GPIO_OUT_ONE);
 	mdelay(50);
-	down_interruptible(&lm3639_lock); 
+	down_interruptible(&lm3639_lock);
 	err = lm3639_smbus_write_byte(new_client, 0x05, &current_brightness);
-	
-    err = lm3639_smbus_read_byte(new_client, 0x0A, &data1);
-	data1 |= 0x19;//backlight enable
+
+	err = lm3639_smbus_read_byte(new_client, 0x0A, &data1);
+	data1 |= 0x19;		/* backlight enable */
 
 	err = lm3639_smbus_write_byte(new_client, 0x0A, &data1);
-	up(&lm3639_lock); 
-	printk("\n [LM3639] lm3639_late_resume  [%d]",data1);
+	up(&lm3639_lock);
 }
 
 static struct early_suspend __attribute__ ((unused)) lm3639_early_suspend_desc = {
-	.level		= EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
-	.suspend	= lm3639_early_suspend,
-	.resume		= lm3639_late_resume,
-};
+.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN, .suspend = lm3639_early_suspend, .resume =
+	    lm3639_late_resume,};
 #endif
 
 static struct platform_driver lm3639_backlight_driver = {
-	.probe      = lm3639_pd_probe,
-	.remove     = lm3639_pd_remove,
-	.driver     = {
-	.name  = "charge-pump",
-	.owner = THIS_MODULE,
-	}
-};      
+	.probe = lm3639_pd_probe,
+	.remove = lm3639_pd_remove,
+	.driver = {
+		   .name = "charge-pump",
+		   .owner = THIS_MODULE,
+		   }
+};
 
 static int __init lm3639_init(void)
 {
-	CPD_FUN();
-	//i2c number 1(0~2) control
-	i2c_register_board_info(1, &i2c_lm3639, 1); 
+	/* i2c number 1(0~2) control */
+	i2c_register_board_info(1, &i2c_lm3639, 1);
 
-	#ifndef	CONFIG_MTK_LEDS
+#ifndef	CONFIG_MTK_LEDS
 	register_early_suspend(&lm3639_early_suspend_desc);
-	#endif	
+#endif
 
-	if(platform_driver_register(&lm3639_backlight_driver))
-	{
-		CPD_ERR("failed to register driver");
+	if (platform_driver_register(&lm3639_backlight_driver))
 		return -1;
-	}
 
 	return 0;
 }
@@ -670,4 +580,3 @@ MODULE_LICENSE("GPL");
 
 module_init(lm3639_init);
 module_exit(lm3639_exit);
-

@@ -158,6 +158,7 @@ machine-$(CONFIG_ARCH_KS8695)		+= ks8695
 machine-$(CONFIG_ARCH_LPC32XX)		+= lpc32xx
 machine-$(CONFIG_ARCH_MMP)		+= mmp
 machine-$(CONFIG_ARCH_MSM)		+= msm
+machine-$(CONFIG_ARCH_MT2601)		+= mt2601
 machine-$(CONFIG_ARCH_MT6582)		+= mt6582
 machine-$(CONFIG_ARCH_MT6592)		+= mt6592
 machine-$(CONFIG_ARCH_MT6572)		+= mt6572
@@ -241,11 +242,6 @@ KBUILD_CPPFLAGS += $(patsubst %,-I$(srctree)/%include,$(machdirs) $(platdirs))
 endif
 endif
 
-ifneq ($(filter y,$(CONFIG_ARCH_MT6752) $(CONFIG_ARCH_MT6732) $(CONFIG_ARCH_MT6595) $(CONFIG_ARCH_MT6795) $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753)),)
-MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-KBUILD_CPPFLAGS += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
-endif
-
 export	TEXT_OFFSET GZFLAGS MMUEXT
 
 # Do we have FASTFPE?
@@ -284,19 +280,21 @@ ifeq ($(CONFIG_USE_OF),y)
 KBUILD_DTBS := dtbs
 endif
 
+all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
+
 MTK_PLATFORM := $(CONFIG_MTK_PLATFORM:"%"=%)
 MTK_PROJECT := $(CONFIG_ARCH_MTK_PROJECT:"%"=%)
 export MTK_PLATFORM MTK_PROJECT MTK_TARGET_PROJECT
-
-all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
+KBUILD_CPPFLAGS += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
+-include $(srctree)/scripts/drvgen/drvgen.mk
+archprepare: $(DRVGEN_FILE_LIST)
+dtbs: $(DRVGEN_FILE_LIST)
 
 boot := arch/arm/boot
 
 archprepare:
 	$(Q)$(MAKE) $(build)=arch/arm/tools include/generated/mach-types.h
--include $(srctree)/scripts/ptgen/$(MTK_PLATFORM)/ptgen.mk
--include $(srctree)/scripts/drvgen/drvgen.mk
--include $(srctree)/scripts/ptgen/$(MTK_PLATFORM)/ptgen.mk
+
 # Convert bzImage to zImage
 bzImage: zImage
 

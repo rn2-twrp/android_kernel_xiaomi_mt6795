@@ -526,7 +526,7 @@ static void lcm_init(void)
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_init() enter\n");
+    pr_debug("[LCM] lcm_init() enter\n");
 
 #endif
 }
@@ -556,7 +556,7 @@ static void lcm_suspend(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-	printk("[LCM] lcm_suspend() enter\n");
+	pr_debug("[LCM] lcm_suspend() enter\n");
 
 
     lcm_mt8193_disable_output();
@@ -612,7 +612,7 @@ static void lcm_resume(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-	printk("[LCM] MT8193 EJ101IA lcm_resume() enter\n");
+	pr_debug("[LCM] MT8193 EJ101IA lcm_resume() enter\n");
 
 	lcm_mt8193_enable_output();	
 

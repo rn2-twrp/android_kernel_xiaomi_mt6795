@@ -143,7 +143,7 @@ static void init_lcm_registers(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
     
     data_array[0] = 0x00010500;  //software reset					 

@@ -7,6 +7,32 @@
 #include "entry-header.S"
 	.text
 
+        .macro dormant_va_log tag
+        stmfd	sp!, {r0 - r2}
+        mrc   p15, 0, r0, c0, c0, 5
+        ands  r0, r0, #0xff
+        ldr   r1, =sleep_aee_rec_cpu_dormant_va
+        ldr   r1, [r1]
+        cmp   r1, #0
+        beq   1f
+        ldr   r2, =\tag
+        str   r2, [r1, r0, lsl #3]
+1:      
+        ldmfd	sp!, {r0 - r2}
+        .endm
+
+        .macro dormant_pa_log tag
+        mrc   p15, 0, r0, c0, c0, 5
+        ands  r0, r0, #0xff
+        adr   r1, sleep_aee_rec_cpu_dormant
+        ldr   r1, [r1]
+        cmp   r1, #0
+        beq   1f
+        ldr   r2, =\tag
+        str   r2, [r1, r0, lsl #3]
+1:
+        .endm
+
 /*
  * Save CPU state for a suspend.  This saves the CPU general purpose
  * registers, and allocates space on the kernel stack to save the CPU
@@ -22,6 +48,9 @@ ENTRY(__cpu_suspend)
 #else
 	ldr	r4, =cpu_suspend_size
 #endif
+
+        dormant_va_log 0x202
+
 	mov	r5, sp			@ current virtual SP
 	add	r4, r4, #12		@ Space for pgd, virt sp, phys resume fn
 	sub	sp, sp, r4		@ allocate CPU state on stack
@@ -66,6 +95,7 @@ ENTRY(cpu_resume_mmu)
 ENDPROC(cpu_resume_mmu)
 	.popsection
 cpu_resume_after_mmu:
+        dormant_va_log 0x503
 	bl	cpu_init		@ restore the und/abt/irq banked regs
 	mov	r0, #0			@ return zero on success
 	ldmfd	sp!, {r4 - r11, pc}
@@ -81,6 +111,7 @@ ENDPROC(cpu_resume_after_mmu)
 	.data
 	.align
 ENTRY(cpu_resume)
+	dormant_pa_log 0x501
         bl      v7_invalidate_l1
 #ifdef CONFIG_SMP
 	mov	r1, #0			@ fall-back logical index for UP
@@ -123,3 +154,12 @@ cpu_logical_index:
 cpu_map_ptr:
 	.long __cpu_logical_map - .
 #endif
+
+	.type sleep_aee_rec_cpu_dormant, #object
+ENTRY(sleep_aee_rec_cpu_dormant)
+	.long   0	// dormant log
+
+	.type sleep_aee_rec_cpu_dormant_va, #object
+ENTRY(sleep_aee_rec_cpu_dormant_va)
+	.long   0	// dormant log
+        

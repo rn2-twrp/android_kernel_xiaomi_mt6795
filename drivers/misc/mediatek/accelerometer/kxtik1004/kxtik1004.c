@@ -2078,6 +2078,11 @@ static int __init kxtik1004_init(void)
 	struct acc_hw *hw = get_cust_acc_hw();
 	GSE_FUN();	
 	GSE_LOG("%s: i2c_number=%d\n", __func__,hw->i2c_num);
+    if (hw->i2c_addr[0])
+    {
+        GSE_LOG("%s: i2c_slave_addr=%d\n", __func__,hw->i2c_addr[0]);
+        i2c_kxtik1004.addr = hw->i2c_addr[0]>>1;
+    }    
 	i2c_register_board_info(hw->i2c_num, &i2c_kxtik1004, 1);
 	if(platform_driver_register(&kxtik1004_gsensor_driver))
 	{

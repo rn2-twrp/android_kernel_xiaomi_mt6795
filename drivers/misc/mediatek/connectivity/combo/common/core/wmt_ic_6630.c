@@ -930,6 +930,7 @@ static INT32 mt6630_sw_deinit(P_WMT_HIF_CONF pWmtHifConf)
 static INT32 mt6630_aif_ctrl(WMT_IC_PIN_STATE state, UINT32 flag)
 {
 	INT32 ret = -1;
+	UINT32 val = 0;
 
 #if MT6630_BRINGUP
 	ret = 0;
@@ -969,6 +970,20 @@ static INT32 mt6630_aif_ctrl(WMT_IC_PIN_STATE state, UINT32 flag)
 
 		case WMT_IC_AIF_3:
 			ret = 0;
+			break;
+			
+		case WMT_IC_AIF_4:
+			/* BT I2S FOR SCO*/
+			WMT_DBG_FUNC("BT I2S via SCO setting\n");
+			//switch pinmux to mode3 - pcm2
+			val = 0x00333300;
+			ret += wmt_core_reg_rw_raw(1, 0x80025070, &val, 0x00FFFF00);
+			//Use PCM2
+			val = 0x00000002;
+			ret += wmt_core_reg_rw_raw(1, 0x81008008, &val, 0x00000002);
+			//Disable Merge mode
+			val = 0x00000000;
+			ret += wmt_core_reg_rw_raw(1, 0x80025300, &val, 0x00000004);
 			break;
 
 		default:
@@ -1076,8 +1091,10 @@ static MTK_WCN_BOOL mt6630_quick_sleep_flag_get(VOID)
 
 static MTK_WCN_BOOL mt6630_aee_dump_flag_get(VOID)
 {
-	//return MTK_WCN_BOOL_TRUE;
-	return MTK_WCN_BOOL_FALSE;
+	if (1 == mtk_wcn_stp_coredump_flag_get())
+		return MTK_WCN_BOOL_TRUE;
+	else
+		return MTK_WCN_BOOL_FALSE;
 }
 
 static MTK_WCN_BOOL mt6630_trigger_stp_assert(VOID)

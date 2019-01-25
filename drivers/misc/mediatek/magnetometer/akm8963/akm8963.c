@@ -117,6 +117,7 @@ typedef enum {
 	AMK_HWM_DEBUG  = 0X04,
 	AMK_CTR_DEBUG  = 0X08,
 	AMK_I2C_DEBUG  = 0x10,
+	AMK_LP_DEBUG   = 0x80,
 } AMK_TRC;
 
 
@@ -392,6 +393,23 @@ static long AKECS_Reset(int hard)
 	udelay(300); // 100
 
 	return err;
+}
+
+static void AKECS_GetMode(void)
+{
+	char buffer[2];
+	int ret;
+	/* Set measure mode */
+	buffer[0] = AK8963_REG_CNTL1;
+
+	/* Read data */
+	ret = AKI2C_RxData(buffer, 1);
+	if (ret < 0) {
+		AKMDBG("ret = %d\n", ret);
+	} else {
+		AKMDBG("reg[0x%x] = 0x%x, bit[3:0] should be 0x0. (%c)\n",
+			AK8963_REG_CNTL1, buffer[0], (buffer[0]&0xF) == 0x0?'O':'X');
+	}
 }
 
 static long AKECS_SetMode(char mode)
@@ -1713,7 +1731,9 @@ static int akm8963_suspend(struct i2c_client *client, pm_message_t msg)
 		AKMDBG("%s:%d Error.\n", __FUNCTION__, __LINE__);
 		return err;
 	}
-	
+	if (atomic_read(&obj->trace) & AMK_LP_DEBUG) {
+		AKECS_GetMode();
+	}
 		akm8963_power(obj->hw, 0);
 	}
 	return 0;
@@ -1730,7 +1750,9 @@ static int akm8963_resume(struct i2c_client *client)
 		}
 
 	akm8963_power(obj->hw, 1);
-		
+	if (atomic_read(&obj->trace) & AMK_LP_DEBUG) {
+		AKECS_GetMode();
+	}
 	if ((err = AKECS_SetMode(AK8963_MODE_SNG_MEASURE)) < 0) {
 		AKMDBG("%s:%d Error.\n", __FUNCTION__, __LINE__);
 		return err;
@@ -1755,7 +1777,9 @@ static void akm8963_early_suspend(struct early_suspend *h)
 		AKMDBG("%s:%d Error.\n", __FUNCTION__, __LINE__);
 		return;
 	}
-
+	if (atomic_read(&obj->trace) & AMK_LP_DEBUG) {
+		AKECS_GetMode();
+	}
 	akm8963_power(obj->hw, 0);       
 }
 /*----------------------------------------------------------------------------*/
@@ -1771,7 +1795,9 @@ static void akm8963_late_resume(struct early_suspend *h)
 		return;
 	}
 	akm8963_power(obj->hw, 1);
-
+	if (atomic_read(&obj->trace) & AMK_LP_DEBUG) {
+		AKECS_GetMode();
+	}
 	if ((err = AKECS_SetMode(AK8963_MODE_SNG_MEASURE)) < 0) {
 		AKMDBG("%s:%d Error.\n", __FUNCTION__, __LINE__);
 		return;

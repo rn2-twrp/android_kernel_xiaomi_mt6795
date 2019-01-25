@@ -25,11 +25,10 @@ static int button_press_debounce = 0x400;
 
 static int debug_enable = 1;
 int cur_key = 0;
-
+s8 accdet_auxadc_offset;
 int accdet_irq;
 unsigned int gpiopin,headsetdebounce;
 struct headset_mode_settings *cust_headset_settings = NULL;
-
 #define ACCDET_DEBUG(format, args...) do{ \
 	if(debug_enable) \
 	{\
@@ -216,9 +215,11 @@ static int Accdet_PMIC_IMM_GetOneChannelValue(int deCount)
 	mdelay(3);
 	while((pmic_pwrap_read(ACCDET_AUXADC_REG)&ACCDET_DATA_READY)!=ACCDET_DATA_READY) {} //wait AUXADC data ready
 	vol_val = (pmic_pwrap_read(ACCDET_AUXADC_REG) & ACCDET_DATA_MASK);
-	//ACCDET_DEBUG("ACCDET read RAW data: 0x%x!! \n\r", vol_val);
 	vol_val = (vol_val*3200)/4096; //mv
-	ACCDET_DEBUG("ACCDET read Voltage: %d mv!! \n\r", vol_val);
+	ACCDET_DEBUG("ACCDET read Voltage: %d mv!!\n\r", vol_val);
+	ACCDET_DEBUG("ACCDET accdet_auxadc_offset: %d mv!!\n\r", accdet_auxadc_offset);
+	vol_val -= accdet_auxadc_offset;
+	ACCDET_DEBUG("ACCDET read Voltage1: %d mv!!\n\r", vol_val);
 	return vol_val;
 }
 
@@ -420,13 +421,6 @@ static void accdet_eint_work_callback(struct work_struct *work)
     }
 #else
    //KE under fastly plug in and plug out
-#ifdef CONFIG_OF
-    disable_irq(accdet_irq);
-#else
-    mt_eint_mask(CUST_EINT_ACCDET_NUM);
-#endif
-	
-   
     if (cur_eint_state == EINT_PIN_PLUG_IN) {
 		ACCDET_DEBUG("[Accdet]EINT func :plug-in\n");
 		mutex_lock(&accdet_eint_irq_sync_mutex);
@@ -538,16 +532,12 @@ static irqreturn_t accdet_eint_func(int irq,void *data)
 	#endif  
 		/* update the eint status */
 		cur_eint_state = EINT_PIN_PLUG_IN;
-
-		//INIT the timer to disable micbias.
-					
-		init_timer(&micbias_timer);
-		micbias_timer.expires = jiffies + MICBIAS_DISABLE_TIMER;
-		micbias_timer.function = &disable_micbias;
-		micbias_timer.data = ((unsigned long) 0 );
-		add_timer(&micbias_timer);
+		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
 	}
-
+#ifndef ACCDET_EINT_IRQ
+	disable_irq_nosync(accdet_irq);
+#endif
+	ACCDET_DEBUG("[Accdet]accdet_eint_func after cur_eint_state=%d\n", cur_eint_state);
 	ret = queue_work(accdet_eint_workqueue, &accdet_eint_work);	
 	return IRQ_HANDLED;
 }
@@ -603,16 +593,9 @@ static void accdet_eint_func(void)
 	#endif  
 		/* update the eint status */
 		cur_eint_state = EINT_PIN_PLUG_IN;
-
-		//INIT the timer to disable micbias.
-					
-		init_timer(&micbias_timer);
-		micbias_timer.expires = jiffies + MICBIAS_DISABLE_TIMER;
-		micbias_timer.function = &disable_micbias;
-		micbias_timer.data = ((unsigned long) 0 );
-		add_timer(&micbias_timer);
+		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
 	}
-
+	ACCDET_DEBUG("[Accdet]accdet_eint_func after1 cur_eint_state=%d\n", cur_eint_state);
 	ret = queue_work(accdet_eint_workqueue, &accdet_eint_work);	
 }
 #endif
@@ -678,13 +661,13 @@ static DEFINE_MUTEX(accdet_multikey_mutex);
 
         MD              UP                DW
 |---------|-----------|----------|
-0V<=MD< 0.09V<= UP<0.24V<=DW <0.5V
+     MD< 0.09V<= UP<0.24V<=DW <0.5V
 
 */
 
 #define DW_KEY_HIGH_THR	 (500) //0.50v=500000uv
-#define DW_KEY_THR		 (180) //0.24v=240000uv
-#define UP_KEY_THR       (60) //0.09v=90000uv
+#define DW_KEY_THR		 (240) //0.24v=240000uv
+#define UP_KEY_THR       (90) //0.09v=90000uv
 #define MD_KEY_THR		 (0)
 
 static int key_check(int b)
@@ -702,9 +685,7 @@ static int key_check(int b)
 	{
 		ACCDET_DEBUG("[accdet]adc_data: %d mv\n",b);
 		return UP_KEY;
-	}
-	else if ((b < UP_KEY_THR) && (b >= MD_KEY_THR))
-	{
+	} else if (b < UP_KEY_THR) {/*add efuse maybe mid-key value is below zero*/
 		ACCDET_DEBUG("[accdet]adc_data: %d mv\n",b);
 		return MD_KEY;
 	}
@@ -713,7 +694,9 @@ static int key_check(int b)
 }
 static void send_key_event(int keycode,int flag)
 {
-
+#if 0
+    if(call_status == 0)
+    {
                 switch (keycode)
                 {
                 case DW_KEY:
@@ -732,14 +715,10 @@ static void send_key_event(int keycode,int flag)
 					ACCDET_DEBUG("[accdet]KEY_PLAYPAUSE %d\n",flag);
 		   	        break;
                 }
-#if 0
-    if(call_status == 0)
-    {
-
      }
 	else
 	{
-
+#endif
 	          switch (keycode)
               {
                 case DW_KEY:
@@ -759,7 +738,7 @@ static void send_key_event(int keycode,int flag)
 					break;
 	          }
 //	}
-#endif
+
 }
 static void multi_key_detection(int current_status)
 {
@@ -1228,6 +1207,23 @@ static void accdet_work_callback(struct work_struct *work)
 
     wake_unlock(&accdet_irq_lock);
 }
+void accdet_pmic_Read_Efuse_HPOffset()
+{
+	int i = 0, j = 0;
+	s16 efusevalue[2];
+	for (i = 0x15; i <= 0x16; i++){
+		efusevalue[j] = (s16)pmic_Read_Efuse_HPOffset(i);
+		j++;
+	}
+	ACCDET_DEBUG("accdet efusevalue[0] = 0x%x\n", efusevalue[0]);
+	ACCDET_DEBUG("accdet efusevalue[1] = 0x%x\n", efusevalue[1]);
+	accdet_auxadc_offset = ((efusevalue[0]>>15)&0x01)|(((efusevalue[1])<<1)&0xFE);
+	ACCDET_DEBUG("accdet_auxadc_offset = %x\n", accdet_auxadc_offset);
+	ACCDET_DEBUG("accdet_auxadc_offset = %d\n", accdet_auxadc_offset);
+	accdet_auxadc_offset = (accdet_auxadc_offset/2);
+	ACCDET_DEBUG("accdet_auxadc_offset = %x\n", accdet_auxadc_offset);
+	ACCDET_DEBUG("accdet_auxadc_offset = %d\n", accdet_auxadc_offset);
+}
 
 //ACCDET hardware initial
 static inline void accdet_init(void)
@@ -1575,6 +1571,11 @@ int mt_accdet_probe(void)
 		ACCDET_DEBUG("[Accdet]kpd_accdet_dev : fail!\n");
 		return -ENOMEM;
 	}
+	//INIT the timer to disable micbias.
+	init_timer(&micbias_timer);
+	micbias_timer.expires = jiffies + MICBIAS_DISABLE_TIMER;
+	micbias_timer.function = &disable_micbias;
+	micbias_timer.data = ((unsigned long) 0 );
 
 	//define multi-key keycode
 	__set_bit(EV_KEY, kpd_accdet_dev->evbit);
@@ -1634,6 +1635,7 @@ int mt_accdet_probe(void)
         #endif
 	    //Accdet Hardware Init
 		accdet_init();   
+		accdet_pmic_Read_Efuse_HPOffset();
 		queue_work(accdet_workqueue, &accdet_work); //schedule a work for the first detection				
 		#ifdef ACCDET_EINT
 		  accdet_disable_workqueue = create_singlethread_workqueue("accdet_disable");

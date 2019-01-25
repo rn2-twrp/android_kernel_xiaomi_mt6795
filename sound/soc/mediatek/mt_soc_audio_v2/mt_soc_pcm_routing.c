@@ -84,8 +84,14 @@ static int mtk_afe_routing_platform_probe(struct snd_soc_platform *platform);
 extern int PMIC_IMM_GetOneChannelValue(int dwChannel, int deCount, int trimd);
 
 static int mDac_Sinegen = 27;
-static const char *DAC_DL_SIDEGEN[] = {"I0I1", "I2", "I3I4", "I5I6", "I7I8", "I9", "I10I11", "I12I13", "I14", "I15I16", "I17I18", "I19I20", "I21I22",
-                                       "O0O1", "O2", "O3O4", "O5O6", "O7O8", "O9O10", "O11", "O12", "O13O14", "O15O16", "O17O18", "O19O20", "O21O22", "O23O24", "OFF"
+static const char *DAC_DL_SIDEGEN[] = {"I0I1", "I2", "I3I4", "I5I6", 
+                                       "I7I8", "I9", "I10I11", "I12I13", 
+                                       "I14", "I15I16", "I17I18", "I19I20", 
+                                       "I21I22", "O0O1", "O2", "O3O4", 
+                                       "O5O6", "O7O8", "O9O10", "O11", 
+                                       "O12", "O13O14", "O15O16", "O17O18", 
+                                       "O19O20", "O21O22", "O23O24", "OFF",
+                                       "O3", "O4"
                                       };
 
 static int mDac_SampleRate = 8;
@@ -225,6 +231,12 @@ static int Audio_SideGen_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
             EnableSideGenHw(Soc_Aud_InterConnectionOutput_O11, Soc_Aud_MemIF_Direction_DIRECTION_OUTPUT, false);
             EnableSideGenHw(Soc_Aud_InterConnectionInput_I00, Soc_Aud_MemIF_Direction_DIRECTION_INPUT, false);
             break;
+        case 28:
+            Afe_Set_Reg(AFE_SGEN_CON0, 0x2E8c28c2, 0xffffffff); // o3o4 but mute o4
+            break;
+        case 29:
+            Afe_Set_Reg(AFE_SGEN_CON0, 0x2D8c28c2, 0xffffffff); // o3o4 but mute o3
+            break;
         default:
             EnableSideGenHw(Soc_Aud_InterConnectionOutput_O11, Soc_Aud_MemIF_Direction_DIRECTION_OUTPUT, false);
             EnableSideGenHw(Soc_Aud_InterConnectionInput_I00, Soc_Aud_MemIF_Direction_DIRECTION_INPUT, false);
@@ -362,6 +374,9 @@ static int AudioDebug_Setting_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_
     EnableSideGenHw(Soc_Aud_InterConnectionOutput_O03, Soc_Aud_MemIF_Direction_DIRECTION_OUTPUT, true);
     msleep(5 * 1000);
     EnableSideGenHw(Soc_Aud_InterConnectionOutput_O03, Soc_Aud_MemIF_Direction_DIRECTION_OUTPUT, false);
+    EnableSideGenHw(Soc_Aud_InterConnectionInput_I03, Soc_Aud_MemIF_Direction_DIRECTION_INPUT, true);
+    msleep(5 * 1000);
+    EnableSideGenHw(Soc_Aud_InterConnectionInput_I03, Soc_Aud_MemIF_Direction_DIRECTION_INPUT, false);
 
     Ana_Log_Print();
     Afe_Log_Print();
@@ -590,7 +605,8 @@ static int Audio_Irqcnt1_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
     uint32 irq1_cnt =  ucontrol->value.integer.value[0];
     printk("%s(), irq1_cnt = %u\n", __func__, irq1_cnt);
     AudDrv_Clk_On();
-    Afe_Set_Reg(AFE_IRQ_MCU_CNT1, irq1_cnt, 0xffffffff);
+	/* Afe_Set_Reg(AFE_IRQ_MCU_CNT1, irq1_cnt, 0xffffffff); */
+	SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ1_MCU_MODE, irq1_cnt);
     AudDrv_Clk_Off();
     return 0;
 }
@@ -610,7 +626,8 @@ static int Audio_Irqcnt2_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
     uint32 irq1_cnt =  ucontrol->value.integer.value[0];
     printk("%s()\n", __func__);
     AudDrv_Clk_On();
-    Afe_Set_Reg(AFE_IRQ_MCU_CNT2, irq1_cnt, 0xffffffff);
+	/* Afe_Set_Reg(AFE_IRQ_MCU_CNT2, irq1_cnt, 0xffffffff); */
+	SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, irq1_cnt);
     AudDrv_Clk_Off();
     return 0;
 }
@@ -646,7 +663,7 @@ static void GetAudioTrimOffset(int channels)
     setOffsetTrimBufferGain(3);
     EnableTrimbuffer(true);
     msleep(1);
-    Buffer_offl_value = PMIC_IMM_GetOneChannelValue(ADC_HP_AP, off_counter, 0);
+    Buffer_offl_value = PMIC_IMM_GetOneChannelValue(AUX_HP_AP, off_counter, 0);
     printk("Buffer_offl_value = %d \n", Buffer_offl_value);
     EnableTrimbuffer(false);
 
@@ -656,7 +673,7 @@ static void GetAudioTrimOffset(int channels)
     setOffsetTrimBufferGain(3);
     EnableTrimbuffer(true);
     msleep(5);
-    Buffer_offr_value = PMIC_IMM_GetOneChannelValue(ADC_HP_AP, off_counter, 0);
+    Buffer_offr_value = PMIC_IMM_GetOneChannelValue(AUX_HP_AP, off_counter, 0);
     printk("Buffer_offr_value = %d \n", Buffer_offr_value);
     EnableTrimbuffer(false);
 
@@ -693,7 +710,7 @@ static void GetAudioTrimOffset(int channels)
     }
 
     msleep(10);
-    Buffer_on_value = PMIC_IMM_GetOneChannelValue(ADC_HP_AP, on_counter, 0);
+    Buffer_on_value = PMIC_IMM_GetOneChannelValue(AUX_HP_AP, on_counter, 0);
     mHplOffset = Buffer_on_value - Buffer_offl_value + Const_DC_OFFSET;
     printk("Buffer_on_value = %d Buffer_offl_value = %d mHplOffset = %d \n", Buffer_on_value, Buffer_offl_value, mHplOffset);
 
@@ -704,7 +721,7 @@ static void GetAudioTrimOffset(int channels)
     setOffsetTrimBufferGain(3);
     EnableTrimbuffer(true);
     msleep(10);
-    Buffer_on_value = PMIC_IMM_GetOneChannelValue(ADC_HP_AP, on_counter, 0);
+    Buffer_on_value = PMIC_IMM_GetOneChannelValue(AUX_HP_AP, on_counter, 0);
     mHprOffset = Buffer_on_value - Buffer_offr_value + Const_DC_OFFSET;
     printk("Buffer_on_value = %d Buffer_offr_value = %d mHprOffset = %d \n", Buffer_on_value, Buffer_offr_value, mHprOffset);
 
@@ -1061,9 +1078,12 @@ static int mtk_routing_pm_ops_suspend(struct device *device)
     {
         AudDrv_Clk_Power_On();
         BackUp_Audio_Register();
-        SetAnalogSuspend(true);
-        //clkmux_sel(MT_MUX_AUDINTBUS, 0, "AUDIO"); //select 26M
-        AudDrv_Suspend_Clk_Off();
+        if(ConditionEnterSuspend() == true)
+        {
+            SetAnalogSuspend(true);
+            //clkmux_sel(MT_MUX_AUDINTBUS, 0, "AUDIO"); //select 26M
+            AudDrv_Suspend_Clk_Off();
+        }
         AudDrvSuspendStatus = true;
     }
     return 0;
@@ -1082,8 +1102,11 @@ static int mtk_routing_pm_ops_resume(struct device *device)
     if (AudDrvSuspendStatus == true)
     {
         AudDrv_Suspend_Clk_On();
-        Restore_Audio_Register();
-        SetAnalogSuspend(false);
+        if(ConditionEnterSuspend() == true)
+        {
+            Restore_Audio_Register();
+            SetAnalogSuspend(false);
+        }
         AudDrvSuspendStatus = false;
     }
     return 0;

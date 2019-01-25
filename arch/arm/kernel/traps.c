@@ -35,6 +35,7 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 #include <linux/aee.h>
+#include <mach/mt_hooks.h>
 static const char *handler[]= {
 	"prefetch abort",
 	"data abort",
@@ -401,7 +402,7 @@ static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 {
 	struct undef_hook *hook;
 	unsigned long flags;
-	int (*fn)(struct pt_regs *regs, unsigned int instr) = NULL;
+	int (*fn)(struct pt_regs *regs, unsigned int instr) = arm_undefinstr_retry;
 
 	raw_spin_lock_irqsave(&undef_lock, flags);
 	list_for_each_entry(hook, &undef_hook, node)
@@ -413,10 +414,6 @@ static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 	return fn ? fn(regs, instr) : 1;
 }
 
-volatile static void __user *prev_undefinstr_pc=0;
-volatile static int prev_undefinstr_counter=0;
-volatile static unsigned long prev_undefinstr_curr=0;
- 
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
 	struct thread_info *thread = current_thread_info();
@@ -424,6 +421,7 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 	unsigned int instr;
 	siginfo_t info;
 	void __user *pc;
+	u32 insn = __opcode_to_mem_arm(BUG_INSTR_VALUE);
 
 	if (!user_mode(regs)) {
 		thread->cpu_excp++;
@@ -480,54 +478,13 @@ die_sig:
 	}
 #endif
 
-	/* Place the SIGILL ICache Invalidate after the Debugger Undefined-Instruction Solution. */
-	if ((processor_mode(regs) == USR_MODE) || (processor_mode(regs) == SVC_MODE)) {
-                /* Only do it for User-Space Application. */
-		printk("USR_MODE/SVC_MODE Undefined Instruction Address curr:%p pc=%p:%p\n",
-			(void *)current, (void *)pc, (void *)prev_undefinstr_pc);
-		if ((prev_undefinstr_pc != pc) || (prev_undefinstr_curr != (unsigned long)current)) {
-			/* If the current process or program counter is changed......renew the counter. */
-			printk("First Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc, (void *)prev_undefinstr_pc);
-			prev_undefinstr_pc = pc;
-			prev_undefinstr_curr = (unsigned long)current;
-			prev_undefinstr_counter = 0;
-			__cpuc_flush_icache_all();
-			flush_cache_all();
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		else if(prev_undefinstr_counter < 1) {
-			printk("2nd Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc, (void *)prev_undefinstr_pc);
-			prev_undefinstr_counter++;
-			__cpuc_flush_icache_all();
-			flush_cache_all();
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		prev_undefinstr_counter++;
-		if(prev_undefinstr_counter >= 4) {
-			/* 2=first time SigILL,3=2nd time NE-SigILL,4=3rd time CoreDump-SigILL */
-			prev_undefinstr_pc = 0;
-			prev_undefinstr_curr = 0;
-			prev_undefinstr_counter = 0;
-		}
-		printk("Go to ARM Notify Die curr:%p pc=%p:%p\n",
-			(void *)current, (void *)pc, (void *)prev_undefinstr_pc);
-	}
-
 	info.si_signo = SIGILL;
 	info.si_errno = 0;
 	info.si_code  = ILL_ILLOPC;
 	info.si_addr  = pc;
 
 	arm_notify_die("Oops - undefined instruction", regs, &info, 0, 6);
-	}
+}
 
 asmlinkage void do_unexp_fiq (struct pt_regs *regs)
 {
@@ -664,7 +621,7 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 		return regs->ARM_r0;
 
 	case NR(set_tls):
-		thread->tp_value[0] = regs->ARM_r0;
+		thread->tp_value = regs->ARM_r0;
 		if (tls_emu)
 			return 0;
 		if (has_tls_reg) {
@@ -782,7 +739,7 @@ static int get_tp_trap(struct pt_regs *regs, unsigned int instr)
 	int reg = (instr >> 12) & 15;
 	if (reg == 15)
 		return 1;
-	regs->uregs[reg] = current_thread_info()->tp_value[0];
+	regs->uregs[reg] = current_thread_info()->tp_value;
 	regs->ARM_pc += 4;
 	return 0;
 }

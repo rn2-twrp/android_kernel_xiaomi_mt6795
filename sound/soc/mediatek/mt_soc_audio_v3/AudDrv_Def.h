@@ -19,10 +19,6 @@
  *
  *---------------------------------------------------------------------------
 ---
- * $Revision: #1 $
- * $Modtime:$
- * $Log:$
- *
  *
 
 *******************************************************************************/
@@ -36,121 +32,121 @@
 #define AUDIO_MEMORY_SRAM
 #define AUDIO_MEM_IOREMAP
 
-// below for audio debugging
+/* below for audio debugging */
 #define DEBUG_AUDDRV
-//#define DEBUG_AFE_REG
-//#define DEBUG_ANA_REG
-//#define DEBUG_AUD_CLK
+/* #define DEBUG_AFE_REG */
+/* #define DEBUG_ANA_REG */
+/* #define DEBUG_AUD_CLK */
 #define DEBUG_AUD_HDMI
-//efine DEBUG_AUD_FMTX
-#define DEBUG_AUD_UL2
-#define DEBUG_AUD_UL1
-#define DEBUG_AUD_DL1
-//#define DEBUG_AUD_DAI
-#define K2_EARLYPORTING_PMIC_LOOPBACK //ccc K2 early porting
-#define DENALI_FPGA_EARLYPORTING //Denali early porting
+/* efine DEBUG_AUD_FMTX */
+/* #define DEBUG_AUD_UL2 */
+/* #define DEBUG_AUD_UL1 */
+/* #define DEBUG_AUD_DL1 */
+/* #define DEBUG_AUD_DAI */
+/* #define K2_EARLYPORTING_PMIC_LOOPBACK //ccc K2 early porting */
+/* #define DENALI_FPGA_EARLYPORTING //Denali early porting */
 
 #ifdef DEBUG_AUDDRV
-#define PRINTK_AUDDRV(format, args...) printk(format, ##args )
+#define PRINTK_AUDDRV(format, args...) printk(format, ##args)
 #else
 #define PRINTK_AUDDRV(format, args...)
 #endif
 
 #ifdef DEBUG_AFE_REG
-#define PRINTK_AFE_REG(format, args...) printk(format, ##args )
+#define PRINTK_AFE_REG(format, args...) printk(format, ##args)
 #else
 #define PRINTK_AFE_REG(format, args...)
 #endif
 
 #ifdef DEBUG_ANA_REG
-#define PRINTK_ANA_REG(format, args...) printk(format, ##args )
+#define PRINTK_ANA_REG(format, args...) printk(format, ##args)
 #else
 #define PRINTK_ANA_REG(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_CLK
-#define PRINTK_AUD_CLK(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_CLK(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_CLK(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DL1
-#define PRINTK_AUD_DL1(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DL1(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DL1(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DL2
-#define PRINTK_AUD_DL2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DL2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DL2(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_FMTX
-#define PRINTK_AUD_FMTX(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_FMTX(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_FMTX(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_HDMI
-#define PRINTK_AUD_HDMI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_HDMI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_HDMI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_HDMI2
-#define PRINTK_AUD_HDMI2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_HDMI2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_HDMI2(format, args...)
 #endif
 
 
 #ifdef DEBUG_AUD_UL1
-#define PRINTK_AUD_UL1(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL1(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL1(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_UL2
-#define PRINTK_AUD_UL2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL2(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_UL3
-#define PRINTK_AUD_UL3(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL3(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL3(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_AWB
-#define PRINTK_AUD_AWB(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_AWB(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_AWB(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DAI
-#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DAI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_MODDAI
-#define PRINTK_AUD_MODDAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_MODDAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_MODDAI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DAI
-#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DAI(format, args...)
 #endif
 
 
-#define PRINTK_AUD_ERROR(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_ERROR(format, args...)  printk(format, ##args)
 
-// if need assert , use AUDIO_ASSERT(true)
+/* if need assert , use AUDIO_ASSERT(true) */
 #define AUDIO_ASSERT(value) BUG_ON(false)
 
 
@@ -191,7 +187,7 @@
 #define BIT_31	0x80000000        /* 1--- ---- ---- ---- ---- ---- ---- ---- */
 #define MASK_ALL          (0xFFFFFFFF)
 
-// cpu dai name
+/* cpu dai name */
 #define MT_SOC_DAI_NAME "mt-soc-dai-driver"
 #define MT_SOC_DL1DAI_NAME "mt-soc-dl1dai-driver"
 #define MT_SOC_DL1DATA2DAI_NAME "mt-soc-dl1data2dai-driver"
@@ -220,9 +216,10 @@
 #define MT_SOC_HP_IMPEDANCE_NAME "mt-soc-hpimpedancedai-driver"
 #define MT_SOC_FM_I2S_NAME "mt-soc-fmi2S-driver"
 #define MT_SOC_FM_I2S_CAPTURE_NAME "mt-soc-fmi2Scapturedai-driver"
+#define MT_SOC_OFFLOAD_GDMA_NAME "mt-soc-offload-gdma-driver"
 
 
-// platform name
+/* platform name */
 #define MT_SOC_DL1_PCM   "mt-soc-dl1-pcm"
 #define MT_SOC_HP_IMPEDANCE_PCM   "mt-soc-hp-impedence-pcm"
 #define MT_SOC_DL1DATA2_PCM   "mt-soc-dl1_data2-pcm"
@@ -256,9 +253,10 @@
 #define MT_SOC_IO2_DAI_PCM "mt-soc-io2dai-pcm"
 #define MT_SOC_FM_I2S_PCM  "mt-soc-fm-i2s-pcm"
 #define MT_SOC_FM_I2S_AWB_PCM  "mt-soc-fm-i2s-awb-pcm"
+#define MT_SOC_OFFLOAD_GDMA_PCM "mt-soc-offload-gdma-pcm"
 
 
-//codec dai name
+/* codec dai name */
 #define MT_SOC_CODEC_TXDAI_NAME "mt-soc-codec-tx-dai"
 #define MT_SOC_CODEC_RXDAI_NAME "mt-soc-codec-rx-dai"
 #define MT_SOC_CODEC_RXDAI2_NAME "mt-soc-codec-rx-dai2"
@@ -293,8 +291,9 @@
 #define MT_SOC_CODEC_IO2DAI_DUMMY_DAI_NAME "mt-soc-io2dai-dummy-dai-codec"
 #define MT_SOC_CODEC_FM_I2S_DUMMY_DAI_NAME "mt-soc-fm-i2s-dummy-dai-codec"
 #define MT_SOC_CODEC_FM_I2S_DAI_NAME "mt-soc-fm-i2s-dai-codec"
+#define MT_SOC_CODEC_OFFLOAD_GDMA_DAI_NAME "mt-soc-offload-gdma-dai-codec"
 
-// stream name
+/* stream name */
 #define MT_SOC_DL1_STREAM_NAME "MultiMedia1_PLayback"
 #define MT_SOC_DL1DATA2_STREAM_NAME "MultiMedia1data2_PLayback"
 #define MT_SOC_DL2_STREAM_NAME "MultiMedia2_PLayback"
@@ -328,7 +327,6 @@
 #define MT_SOC_IO2DAI_STREAM_NAME "ANC_Debug_Record_IO2"
 #define MT_SOC_FM_I2S_PLAYBACK_STREAM_NAME "FM_I2S_Playback"
 #define MT_SOC_FM_I2S_CAPTURE_STREAM_NAME "FM_I2S_Capture"
+#define MT_SOC_OFFLOAD_GDMA_STREAM_NAME "OFFLOAD_GDMA_Playback"
 
 #endif
-
-

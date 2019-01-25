@@ -408,8 +408,8 @@ static unsigned int lcm_compare_id(void)
     printf("otm8009a uboot %s\n", __func__);
     printf("%s, id = 0x%08x\n", __func__, id);//should be 0x8009
     #else
-    printk("otm8009a kernel %s\n", __func__);
-    printk("%s, id = 0x%08x\n", __func__, id);//should be 0x8009
+    pr_debug("otm8009a kernel %s\n", __func__);
+    pr_debug("%s, id = 0x%08x\n", __func__, id);//should be 0x8009
     #endif
     return 1;
     return (LCM_ID == id)?1:0;
@@ -504,7 +504,7 @@ static void lcm_setbacklight(unsigned int level)
 #ifdef BUILD_LK
     printf("uboot:otm8009a_lcm_setbacklight mapped_level = %d,level=%d\n",mapped_level,level);
 #else
-    printk("kernel:otm8009a_lcm_setbacklight mapped_level = %d,level=%d\n",mapped_level,level);
+    pr_debug("kernel:otm8009a_lcm_setbacklight mapped_level = %d,level=%d\n",mapped_level,level);
 #endif
 
     push_table(lcm_backlight_level_setting, sizeof(lcm_backlight_level_setting) / sizeof(struct LCM_setting_table), 1);

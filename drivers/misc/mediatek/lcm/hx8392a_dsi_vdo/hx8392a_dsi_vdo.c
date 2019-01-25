@@ -77,7 +77,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 
     //set mipi 4 lane
     {0xBA, 17, {0x13, 0x83, 0x00, 0xD6,
-	            0xC5, 0x00, 0x09, 0xFF,
+	            0xC5, 0x10, 0x09, 0xFF,
 	            0x0F, 0x27, 0x03, 0x21,
 	            0x27, 0x25, 0x20, 0x00,
 	            0x10}},
@@ -118,7 +118,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
     //SET DSI VIDEO MODE
     {0xC2, 1, {0x03}},
 
-    {0xC6, 4, {0x35, 0x00, 0x20, 0x04}},
+    {0xC6, 4, {0x35, 0x08, 0x20, 0x04}},
 
 	//SET PANEL
     {0xCC, 1, {0x09}},
@@ -186,21 +186,19 @@ static struct LCM_setting_table lcm_set_window[] = {
 
 static struct LCM_setting_table lcm_sleep_out_setting[] = {
     // Sleep Out
-    {0x11, 1, {0x00}},
+    {0x11, 0, {}},
     {REGFLAG_DELAY, 120, {}},
 
     // Display ON
-    {0x29, 1, {0x00}},
+    {0x29, 0, {}},
     {REGFLAG_END_OF_TABLE, 0x00, {}}
 };
 
 
 static struct LCM_setting_table lcm_deep_sleep_mode_in_setting[] = {
-    // Display off sequence
-    {0x28, 1, {0x00}},
-
     // Sleep Mode On
-    {0x10, 1, {0x00}},
+    {0x10, 0, {}},
+    {REGFLAG_DELAY, 120, {}},
     {REGFLAG_END_OF_TABLE, 0x00, {}}
 };
 
@@ -275,20 +273,31 @@ static void lcm_get_params(LCM_PARAMS *params)
     params->dsi.PS=LCM_PACKED_PS_24BIT_RGB888;
 
     params->dsi.vertical_sync_active				= 2;
-    params->dsi.vertical_backporch					= 2;
-    params->dsi.vertical_frontporch					= 2;
+    params->dsi.vertical_backporch					= 8;
+    params->dsi.vertical_frontporch					= 15;
     params->dsi.vertical_active_line				= FRAME_HEIGHT;
 
-    params->dsi.horizontal_sync_active				= 8;
-    params->dsi.horizontal_backporch				= 60;
-    params->dsi.horizontal_frontporch				= 60;
+    params->dsi.horizontal_sync_active				= 50;
+    params->dsi.horizontal_backporch				= 50;
+    params->dsi.horizontal_frontporch				= 50;
     params->dsi.horizontal_active_pixel				= FRAME_WIDTH;
-    params->dsi.PLL_CLOCK = 200; //this value must be in MTK suggested table
+
+#ifndef CONFIG_FPGA_EARLY_PORTING
+#if (LCM_DSI_CMD_MODE)
+	params->dsi.PLL_CLOCK = 350; //this value must be in MTK suggested table
+#else
+	params->dsi.PLL_CLOCK = 218; //this value must be in MTK suggested table
+#endif
+#else
+	params->dsi.pll_div1 = 0;
+	params->dsi.pll_div2 = 0;
+	params->dsi.fbk_div = 0x1;
+#endif
 
     params->dsi.cont_clock=1;
 
 	params->dsi.clk_lp_per_line_enable = 0;
-	params->dsi.esd_check_enable = 0;
+	params->dsi.esd_check_enable = 1;
 	params->dsi.customization_esd_check_enable = 0;
 	params->dsi.lcm_esd_check_table[0].cmd          = 0x53;
 	params->dsi.lcm_esd_check_table[0].count        = 1;

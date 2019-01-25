@@ -1,7 +1,7 @@
 
 #ifndef __mt8193hdmictrl_h__
 #define __mt8193hdmictrl_h__
-#ifdef CONFIG_MTK_MT8193_HDMI_SUPPORT
+#ifdef HDMI_MT8193_SUPPORT
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -683,6 +683,7 @@ extern void vSendAVIInfoFrame(u8 ui1resindex, u8 ui1colorspace);
 extern void mt8193_hdmistatus(void);
 extern void vTxSignalOnOff(u8 bOn);
 extern u8 bCheckPordHotPlug(u8 bMode);
+extern u8 hdmi_port_status(void);
 extern void vSetHDMITxPLLTrigger(void);
 extern void vResetHDMIPLL(void);
 extern void vHotPlugPinInit(void);
@@ -690,5 +691,7 @@ extern void vBlackHDMIOnly(void);
 extern void vUnBlackHDMIOnly(void);
 extern void UnMuteHDMIAudio(void);
 extern void MuteHDMIAudio(void);
+extern u8 vIsDviMode(void);
+
 #endif
 #endif

@@ -105,7 +105,7 @@ int gt1x_init_tool_node(void)
 
 	set_tool_node_name(procname);
 
-	gt1x_tool_proc_entry = proc_create(procname, 0666, NULL, &gt1x_tool_fops);
+	gt1x_tool_proc_entry = proc_create(procname, 0664, NULL, &gt1x_tool_fops);
 	if (gt1x_tool_proc_entry == NULL) {
 		GTP_ERROR("Couldn't create proc entry!");
 		return -1;

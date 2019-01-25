@@ -334,7 +334,7 @@ extern int it6151_i2c_write_byte(kal_uint8 dev_addr, kal_uint8 addr, kal_uint8 w
 void IT6151_DPTX_init(void)
 	{   
 #ifndef BUILD_LK
-	printk("\IT6151_DPTX_init !!!\n");
+	pr_debug("\IT6151_DPTX_init !!!\n");
 #else
 	printf("[LK/LCM] IT6151_DPTX_init\n");
 #endif	
@@ -407,15 +407,15 @@ int	IT6151_init(void)
 	it6151_i2c_read_byte(DP_I2C_ADDR, 0x04, &RevID);	
 				
 #ifndef BUILD_LK	
-	printk("Current DPDevID=%02X%02X\n", DevID[1], DevID[0]);
-	printk("Current DPVenID=%02X%02X\n", VenID[1], VenID[0]);
-	printk("Current DPRevID=%02X\n\n", RevID);	
+	pr_debug("Current DPDevID=%02X%02X\n", DevID[1], DevID[0]);
+	pr_debug("Current DPVenID=%02X%02X\n", VenID[1], VenID[0]);
+	pr_debug("Current DPRevID=%02X\n\n", RevID);	
 #endif
 				
 	if( VenID[0]==0x54 && VenID[1]==0x49 && DevID[0]==0x51 && DevID[1]==0x61 ){
 
 #ifndef BUILD_LK	
-		printk(" Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
+		pr_debug(" Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
 #else
 		printf("[LK/LCM] Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
 #endif
@@ -450,7 +450,7 @@ int	IT6151_init(void)
 	}
 
 #ifndef BUILD_LK	
-	printk(" Test 2 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
+	pr_debug(" Test 2 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
 #endif
 
 	it6151_i2c_read_byte(MIPI_I2C_ADDR, 0x00, &VenID[0]);
@@ -460,14 +460,14 @@ int	IT6151_init(void)
 	it6151_i2c_read_byte(MIPI_I2C_ADDR, 0x04, &RevID);
 
 #ifndef BUILD_LK
-	printk("Current MPDevID=%02X%02X\n", DevID[1], DevID[0]);
-	printk("Current MPVenID=%02X%02X\n", VenID[1], VenID[0]);
-	printk("Current MPRevID=%02X\n\n", RevID);
+	pr_debug("Current MPDevID=%02X%02X\n", DevID[1], DevID[0]);
+	pr_debug("Current MPVenID=%02X%02X\n", VenID[1], VenID[0]);
+	pr_debug("Current MPRevID=%02X\n\n", RevID);
 #endif
 	if( VenID[0]==0x54 && VenID[1]==0x49 && DevID[0]==0x51 && DevID[1]==0x61 ){
 	
 #ifndef BUILD_LK	
-			printk(" Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
+			pr_debug(" Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
 #else
 			printf("[LK/LCM] Test 1 DP_I2C_ADDR=0x%x, MIPI_I2C_ADDR=0x%x\n", DP_I2C_ADDR, MIPI_I2C_ADDR);
 #endif
@@ -535,7 +535,7 @@ static unsigned int IT6151_ESD_Check(void)
 		unsigned char VenID[2], DevID[2];
 				
 #ifndef BUILD_LK
-		printk("\nIT6151 1st IRQ !!!\n");
+		pr_debug("\nIT6151 1st IRQ !!!\n");
 #endif
 				
 		it6151_i2c_read_byte(DP_I2C_ADDR, 0x00, &VenID[0]);
@@ -544,8 +544,8 @@ static unsigned int IT6151_ESD_Check(void)
 		it6151_i2c_read_byte(DP_I2C_ADDR, 0x03, &DevID[1]);
 	
 #ifndef BUILD_LK
-		printk("Current DevID=%02X%02X\n", DevID[1], DevID[0]);
-		printk("Current VenID=%02X%02X\n", VenID[1], VenID[0]);
+		pr_debug("Current DevID=%02X%02X\n", DevID[1], DevID[0]);
+		pr_debug("Current VenID=%02X%02X\n", VenID[1], VenID[0]);
 			#endif
 					
 		if( VenID[0]==0x54 && VenID[1]==0x49 && DevID[0]==0x51 && DevID[1]==0x61){
@@ -557,7 +557,7 @@ static unsigned int IT6151_ESD_Check(void)
 	if(ucIsIT6151==1){
 		it6151_i2c_read_byte(DP_I2C_ADDR, 0x0D, &ucReg);
 #ifndef BUILD_LK			
-		printk("\nIT6151 Reg0x0D=0x%x !!!\n", ucReg);
+		pr_debug("\nIT6151 Reg0x0D=0x%x !!!\n", ucReg);
 #endif
    		if(ucReg & 0x80){
 			it6151_i2c_read_byte(MIPI_I2C_ADDR, 0x06, &ucStat);
@@ -608,7 +608,7 @@ static void IT6151_ESD_Recover(void)
 	unsigned char ucStat;
 
   #ifndef BUILD_LK
-	printk("\nIT6151_ESD_Recover\n");
+	pr_debug("\nIT6151_ESD_Recover\n");
 	#endif
 	it6151_i2c_read_byte(MIPI_I2C_ADDR, 0x08, &ucStat);
 	if(ucStat & 0x40){
@@ -691,7 +691,7 @@ static void lcm_init_power(void)
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 		MDELAY(100);
 #else
-		printk("[Kernel/LCM] lcm_init_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 		MDELAY(50);
 	
@@ -710,7 +710,7 @@ static void lcm_suspend_power(void)
 
 			
 #else
-		printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 		MDELAY(50);
 #endif
@@ -727,7 +727,7 @@ static void lcm_resume_power(void)
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 		MDELAY(50);	
 #else
-		printk("[Kernel/LCM] lcm_resume_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 		MDELAY(50);
 	
@@ -750,7 +750,7 @@ static void lcm_init(void)
 	MDELAY(20);
 #else
 
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN, 1);
 	MDELAY(20);
@@ -780,22 +780,22 @@ static void lcm_init(void)
 	}
 #else
 	it6151_i2c_read_byte(DP_I2C_ADDR, 0x0d, &tmp);
-	printk("\nIT6151 Reg0x0D=0x%x !!!\n", tmp);
+	pr_debug("\nIT6151 Reg0x0D=0x%x !!!\n", tmp);
 	it6151_i2c_read_byte(DP_I2C_ADDR, 0x0e, &tmp);
-	printk("\nIT6151 Reg0x0E=0x%x !!!\n", tmp);
+	pr_debug("\nIT6151 Reg0x0E=0x%x !!!\n", tmp);
 	it6151_i2c_read_byte(MIPI_I2C_ADDR, 0x0d, &tmp);
-	printk("\nIT6151 Reg0x0D=0x%x !!!\n", tmp);
+	pr_debug("\nIT6151 Reg0x0D=0x%x !!!\n", tmp);
 
 	for(i = 0x30; i <= 0x43; i++) 
 	{ 	
 		it6151_i2c_read_byte(MIPI_I2C_ADDR, i, &tmp);
-		printk("\nIT6151 Reg0x%x = 0x%x !!!\n", i, tmp);			
+		pr_debug("\nIT6151 Reg0x%x = 0x%x !!!\n", i, tmp);			
 	} 
 
 	for(i = 0x50; i <= 0x57; i++) 
 	{ 	
 		it6151_i2c_read_byte(MIPI_I2C_ADDR, i, &tmp);
-		printk("\nIT6151 Reg0x%x = 0x%x !!!\n", i, tmp);
+		pr_debug("\nIT6151 Reg0x%x = 0x%x !!!\n", i, tmp);
 	}
 #endif
 #endif
@@ -809,7 +809,7 @@ static void lcm_suspend(void)
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ZERO);
 	MDELAY(20);
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ZERO);
 	MDELAY(20);
@@ -824,7 +824,7 @@ static void lcm_resume(void)
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ONE);
 	MDELAY(20);
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ONE);
 	MDELAY(20);
@@ -836,14 +836,14 @@ static void lcm_resume(void)
 static unsigned int	lcm_esd_check(void)
 {
 #ifndef BUILD_LK
-	printk("lcm_esd_check\n\n");
+	pr_debug("lcm_esd_check\n\n");
 #endif
 	return IT6151_ESD_Check();
 }
 static unsigned int	lcm_esd_recover(void)
 {
 #ifndef BUILD_LK
-	printk("lcm_esd_recover\n\n");
+	pr_debug("lcm_esd_recover\n\n");
 #endif
 	IT6151_ESD_Recover();
 	return 0;

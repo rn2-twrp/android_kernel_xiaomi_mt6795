@@ -19,7 +19,7 @@
 #endif
 
 
-// in K2, main=3, sub=main2=1
+
 #define LENS_I2C_BUSNUM 0
 static struct i2c_board_info kd_lens_dev __initdata = { I2C_BOARD_INFO("AD5823AF", 0x6C) };
 
@@ -321,18 +321,20 @@ static int AD5823AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	AD5823AFDB("[AD5823AF] AD5823AF_Release - Start\n");
 
-	if (g_s4AD5823AF_Opened) {
-		AD5823AFDB("[AD5823AF] feee\n");
+	if (g_s4AD5823AF_Opened == 2) {
 		g_sr = 5;
 		s4AD5823AF_WriteReg(200);
 		msleep(10);
 		s4AD5823AF_WriteReg(100);
 		msleep(10);
+	}
+
+	if (g_s4AD5823AF_Opened) {
+		AD5823AFDB("[AD5823AF] feee\n");
 
 		spin_lock(&g_AD5823AF_SpinLock);
 		g_s4AD5823AF_Opened = 0;
 		spin_unlock(&g_AD5823AF_SpinLock);
-
 	}
 
 	AD5823AFDB("[AD5823AF] AD5823AF_Release - End\n");

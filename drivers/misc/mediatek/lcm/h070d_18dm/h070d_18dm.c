@@ -517,7 +517,7 @@ static void lcm_mt8193_dump_register(void)
 #ifdef BUILD_LK
 		printf("[LK/LCM] 8193 LVDS TX Setting read Reg[0x%X] = 0x%X \n", reg[i], u4Reg);
 #else
-		printk("[LCM]8193 LVDS TX Setting read Reg[0x%X] = 0x%X	\n", reg[i], u4Reg);
+		pr_debug("[LCM]8193 LVDS TX Setting read Reg[0x%X] = 0x%X	\n", reg[i], u4Reg);
 #endif
 	}
 
@@ -527,7 +527,7 @@ for (i = 0x0400; i < 0x0524; i += 4)
 #ifdef BUILD_LK
     printf("[LK/LCM] 8193 DGI0 Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
 #else
-	printk("[LCM] 8193 DGI0 Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
+	pr_debug("[LCM] 8193 DGI0 Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
 #endif
  	}
 
@@ -537,7 +537,7 @@ for (i = 0x1000; i < 0x138c; i += 4)
 #ifdef BUILD_LK
     printf("[LK/LCM] 8193 Clock Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
 #else
-	printk("[LCM] 8193 Clock Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
+	pr_debug("[LCM] 8193 Clock Setting read Reg[0x%X] = 0x%X \n", i, u4Reg);
 #endif
   	}
 }
@@ -571,7 +571,7 @@ static void lcm_init(void)
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_init() enter\n");
+    pr_debug("[LCM] lcm_init() enter\n");
 
 #endif
 }
@@ -601,7 +601,7 @@ static void lcm_suspend(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-	printk("[LCM] lcm_suspend() enter\n");
+	pr_debug("[LCM] lcm_suspend() enter\n");
 
 
     lcm_mt8193_disable_output();
@@ -657,7 +657,7 @@ static void lcm_resume(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-	printk("[LCM] MT8193 EJ101IA lcm_resume() enter\n");
+	pr_debug("[LCM] MT8193 EJ101IA lcm_resume() enter\n");
 
 	lcm_mt8193_enable_output();	
 

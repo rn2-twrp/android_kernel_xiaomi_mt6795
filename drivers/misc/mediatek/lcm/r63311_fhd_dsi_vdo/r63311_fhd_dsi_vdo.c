@@ -199,7 +199,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s\n", __func__);
     #else
-		printk("%s\n", __func__);
+		pr_debug("%s\n", __func__);
     #endif
     
 	lcm_util.set_gpio_mode(LCD_LDO_ENP_GPIO_PIN, GPIO_MODE_00);
@@ -241,7 +241,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s, LK r63311_jdi_diabloX debug: r63311_jdi_diabloX id = 0x%08x\n", __func__, id);
     #else
-		printk("%s, kernel r63311_jdi_diabloX horse debug: r63311_jdi_diabloX id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel r63311_jdi_diabloX horse debug: r63311_jdi_diabloX id = 0x%08x\n", __func__, id);
     #endif
 
     if(lcd_id == 0x3311)

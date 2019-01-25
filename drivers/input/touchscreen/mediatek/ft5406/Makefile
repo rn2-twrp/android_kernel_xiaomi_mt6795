@@ -1,5 +1,9 @@
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
+ifeq ($(CONFIG_MTK_LCM_PHYSICAL_ROTATION), "0")
+ccflags-y += -DMTK_LCM_PHYSICAL_ROTATION=\"0\"
+endif
+
 ifeq ($(CONFIG_MTK_LCM_PHYSICAL_ROTATION), "90")
 ccflags-y += -DMTK_LCM_PHYSICAL_ROTATION=\"90\"
 endif

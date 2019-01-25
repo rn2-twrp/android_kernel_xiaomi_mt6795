@@ -250,7 +250,7 @@ lcm_set_gpio_output(GPIO_LCD_BL_EN, GPIO_OUT_ONE);
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_init() enter\n");
+    pr_debug("[LCM] lcm_init() enter\n");
 
 lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ONE);
 
@@ -293,7 +293,7 @@ MDELAY(20);
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_suspend() enter\n");
+    pr_debug("[LCM] lcm_suspend() enter\n");
 
     lcm_set_gpio_output(GPIO_LCD_BL_EN, 0);
 
@@ -366,7 +366,7 @@ static void lcm_resume(void)
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_resume() enter\n");
+    pr_debug("[LCM] lcm_resume() enter\n");
 
 #ifdef CONFIG_MTK_PMIC_MT6397
     hwPowerOn(MT65XX_POWER_LDO_VGP6, VOL_3300, "LCM");

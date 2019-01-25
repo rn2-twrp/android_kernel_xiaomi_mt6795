@@ -86,9 +86,9 @@ static unsigned long gic_dist_base;
 #define GIC_NODE "mtk,mt-gic"
 
 #define MP0_DBGAPB_BASE (dbgapb_base)
-#define _DBGAPB_CORE_OFFSET (0x10000)
-#define MP1_DBGAPB_BASE (dbgapb_base + (_DBGAPB_CORE_OFFSET*4))
-#define _MCUCFG_BASE (mcucfg_base)      //0x1020_0000
+#define K2_DBGAPB_CORE_OFFSET (0x10000)
+#define MP1_DBGAPB_BASE (dbgapb_base + (K2_DBGAPB_CORE_OFFSET*4))
+#define K2_MCUCFG_BASE (mcucfg_base)      //0x1020_0000
 #define CCI400_BASE     (cci400_base)   //0x1039_0000
 #define INFRACFG_AO_BASE (infracfg_ao_base) //0x1000_1000
 
@@ -100,7 +100,7 @@ static unsigned long gic_dist_base;
 #else
 #define MP0_DBGAPB_BASE (0xf0810000)
 #define MP1_DBGAPB_BASE (0xf0C10000)
-#define _MCUCFG_BASE (0xf0200000)      //0x1020_0000
+#define K2_MCUCFG_BASE (0xf0200000)      //0x1020_0000
 #define CCI400_BASE     (0xf0390000)   //0x1039_0000
 #define INFRACFG_AO_BASE        (0xf0001000) //0x1000_1000
 #define GIC_CPU_BASE    (0xf0220000 + 0x2000)
@@ -112,7 +112,7 @@ static unsigned long gic_dist_base;
 //#define CA15L_CONFIG_BASE 0x10200200
 #define MP0_DBGAPB_BASE (0x10810000)
 #define MP1_DBGAPB_BASE (0x10C10000)
-#define _MCUCFG_BASE (0x10200000)      //0x1020_0000
+#define K2_MCUCFG_BASE (0x10200000)      //0x1020_0000
 #define CCI400_BASE     (0x10390000)   //0x1039_0000
 #define INFRACFG_AO_BASE        (0x10001000) //0x1000_1000
 
@@ -128,12 +128,12 @@ typedef enum {
 #define local_fiq_enable() do {} while(0)
 #endif //#if defined (__KERNEL__)
 
-#define MP0_CA7L_CACHE_CONFIG   (_MCUCFG_BASE + 0)
-#define MP1_CA7L_CACHE_CONFIG   (_MCUCFG_BASE + 0x200)
+#define MP0_CA7L_CACHE_CONFIG   (K2_MCUCFG_BASE + 0)
+#define MP1_CA7L_CACHE_CONFIG   (K2_MCUCFG_BASE + 0x200)
 #define L2RSTDISABLE 		(1 << 4)
 
-#define MP0_AXI_CONFIG          (_MCUCFG_BASE + 0x2C) 
-#define MP1_AXI_CONFIG          (_MCUCFG_BASE + 0x22C) 
+#define MP0_AXI_CONFIG          (K2_MCUCFG_BASE + 0x2C) 
+#define MP1_AXI_CONFIG          (K2_MCUCFG_BASE + 0x22C) 
 #define ACINACTM                (1<<4)
 
 
@@ -235,20 +235,15 @@ typedef enum {
  * macro for log
  **********************************/
 #define CPU_DORMANT_LOG_WITH_NONE                           0
-#define CPU_DORMANT_LOG_WITH_XLOG                           1
-#define CPU_DORMANT_LOG_WITH_PRINTK                         2
+#define CPU_DORMANT_LOG_WITH_DEBUG                          1
 
 #define CPU_DORMANT_LOG_PRINT CPU_DORMANT_LOG_WITH_NONE
 
 #if (CPU_DORMANT_LOG_PRINT == CPU_DORMANT_LOG_WITH_NONE)
 #define CPU_DORMANT_INFO(fmt, args...)          do { } while(0)
-#elif (CPU_DORMANT_LOG_PRINT == CPU_DORMANT_LOG_WITH_XLOG)
-#define CPU_DORMANT_INFO(fmt, args...)		do { xlog_printk(ANDROID_LOG_INFO, "Power/cpu_dormant", fmt, ##args); } while(0)
-#elif (CPU_DORMANT_LOG_PRINT == CPU_DORMANT_LOG_WITH_PRINTK)
-#define CPU_DORMANT_INFO(fmt, args...)		do { printk("[Power/cpu_dormant] "fmt, ##args); } while(0)
+#elif (CPU_DORMANT_LOG_PRINT == CPU_DORMANT_LOG_WITH_DEBUG)
+#define CPU_DORMANT_INFO(fmt, args...)		do { pr_debug("[Power/cpu_dormant] "fmt, ##args); } while(0)
 #endif
-
-#define zlog(fmt, args...)		xlog_printk(ANDROID_LOG_INFO, "Power/cpu_dormant", fmt, ##args)
 
 #define MT_DORMANT_DEBUG 
 
@@ -315,6 +310,7 @@ void __disable_dcache__inner_flush_dcache_L1__inner_flush_dcache_L2(void);
 void __disable_dcache__inner_flush_dcache_L1(void);
 
 extern unsigned long *aee_rr_rec_cpu_dormant(void);
+extern unsigned long *aee_rr_rec_cpu_dormant_pa(void);
 
 unsigned int *mt_save_banked_registers(unsigned int *container) {return container; }
 void mt_restore_banked_registers(unsigned int *container) {}
@@ -448,22 +444,6 @@ inline int read_id(int *cpu_id, int *cluster_id)
 	return mpidr;
 }
 
-#define read_cpuactlr()							\
-	({								\
-		register unsigned long long ret;			\
-		__asm__ __volatile__ ("MRS   %0, S3_1_C15_C2_0  \n\t"	\
-				      :"=r"(ret));			\
-		ret;							\
-	})
-
-#define write_cpuactlr(val)				\
-	do {						\
-		__asm__ __volatile__(			\
-			"MSR    S3_1_C15_C2_0, %0  \n"	\
-			:				\
-			:"r"(val));			\
-	} while (0)
-
 #define system_cluster(system, clusterid)	(&((system_context *)system)->cluster[clusterid])
 #define cluster_core(cluster, cpuid)	(&((cluster_context *)cluster)->core[cpuid])
 
@@ -487,24 +467,6 @@ void *_get_data(int core_or_cluster)
 #define GET_CLUSTER_DATA() ((cluster_context *)_get_data(1))
 #define GET_SYSTEM_DATA() ((system_context *)dormant_data)
 
-int workaround_836870(unsigned long mpidr)
-{
-        unsigned long long cpuactlr;
-        /** CONFIG_ARM_ERRATA_836870=y (for 6595/6752/6735, prior to r0p4)
-         * Prog CatC,
-         * Non-allocating reads might prevent a store exclusive from passing
-         * worksround: set the CPUACTLR.DTAH bit.
-         * The CPU Auxiliary Control Register can be written only when the system 
-         * is idle. ARM recommends that you write to this register after a powerup 
-         * reset, before the MMU is enabled, and before any ACE or ACP traffic 
-         * begins.
-         **/
-        cpuactlr = read_cpuactlr();
-        cpuactlr = cpuactlr | (1<<24);
-        write_cpuactlr(cpuactlr);
-
-        return 0;
-}
 
 #if 0
 /********************/
@@ -2361,8 +2323,6 @@ int mt_cpu_dormant(unsigned long flags)
 	}
 
 	ret = cpu_suspend(flags, mt_cpu_dormant_reset);
-	workaround_836870(read_mpidr());
-
 #else //#if defined (CONFIG_ARM_PSCI)        
 #if !defined (CONFIG_ARM64)
 	ret = cpu_suspend(flags, mt_cpu_dormant_psci);
@@ -2448,12 +2408,12 @@ static int mt_dormant_dts_map(void)
         node = of_find_compatible_node(NULL, NULL, DBGAPB_NODE);
         if (!node) 
         {
-                zlog("error: cannot find node " DBGAPB_NODE); 
+                CPU_DORMANT_INFO("error: cannot find node " DBGAPB_NODE); 
                 BUG();
         }
         dbgapb_base = (unsigned long)of_iomap(node, 0);
         if(!dbgapb_base) {
-                zlog("error: cannot iomap " DBGAPB_NODE);
+                CPU_DORMANT_INFO("error: cannot iomap " DBGAPB_NODE);
                 BUG();
         }
         of_node_put(node);
@@ -2462,12 +2422,12 @@ static int mt_dormant_dts_map(void)
         node = of_find_compatible_node(NULL, NULL, MCUCFG_NODE);
         if (!node) 
         {
-                zlog("error: cannot find node " MCUCFG_NODE); 
+                CPU_DORMANT_INFO("error: cannot find node " MCUCFG_NODE); 
                 BUG();
         }
         mcucfg_base = (unsigned long)of_iomap(node, 0);
         if(!mcucfg_base) {
-                zlog("error: cannot iomap " MCUCFG_NODE);
+                CPU_DORMANT_INFO("error: cannot iomap " MCUCFG_NODE);
                 BUG();
         }
         of_node_put(node);
@@ -2476,12 +2436,12 @@ static int mt_dormant_dts_map(void)
         node = of_find_compatible_node(NULL, NULL, CCI400_NODE);
         if (!node) 
         {
-                zlog("error: cannot find node " CCI400_NODE); 
+                CPU_DORMANT_INFO("error: cannot find node " CCI400_NODE); 
                 BUG();
         }
         cci400_base = (unsigned long)of_iomap(node, 0);
         if(!cci400_base) {
-                zlog("error: cannot iomap " CCI400_NODE);
+                CPU_DORMANT_INFO("error: cannot iomap " CCI400_NODE);
                 BUG();
         }
         of_node_put(node);
@@ -2490,12 +2450,12 @@ static int mt_dormant_dts_map(void)
         node = of_find_compatible_node(NULL, NULL, INFRACFG_AO_NODE);
         if (!node) 
         {
-                zlog("error: cannot find node " INFRACFG_AO_NODE); 
+                CPU_DORMANT_INFO("error: cannot find node " INFRACFG_AO_NODE); 
                 BUG();
         }
         infracfg_ao_base = (unsigned long)of_iomap(node, 0);
         if(!infracfg_ao_base) {
-                zlog("error: cannot iomap " INFRACFG_AO_NODE);
+                CPU_DORMANT_INFO("error: cannot iomap " INFRACFG_AO_NODE);
                 BUG();
         }
         of_node_put(node);
@@ -2504,13 +2464,13 @@ static int mt_dormant_dts_map(void)
         node = of_find_compatible_node(NULL, NULL, GIC_NODE);
         if (!node) 
         {
-                zlog("error: cannot find node " GIC_NODE); 
+                CPU_DORMANT_INFO("error: cannot find node " GIC_NODE); 
                 BUG();
         }
         gic_dist_base = (unsigned long)of_iomap(node, 0);
         gic_cpu_base = (unsigned long)of_iomap(node, 1);
         if(!gic_dist_base || !gic_cpu_base) {
-                zlog("error: cannot iomap " GIC_NODE);
+                CPU_DORMANT_INFO("error: cannot iomap " GIC_NODE);
                 BUG();
         }
         of_node_put(node);
@@ -2540,7 +2500,7 @@ int mt_cpu_dormant_init(void)
         mt_dormant_dts_map();
 
         sleep_aee_rec_cpu_dormant_va = dormant_data[0].poc.cpu_dormant_aee_rr_rec = aee_rr_rec_cpu_dormant();
-        sleep_aee_rec_cpu_dormant = virt_to_phys((void*)sleep_aee_rec_cpu_dormant_va);
+	sleep_aee_rec_cpu_dormant = (phys_addr_t) aee_rr_rec_cpu_dormant_pa();
 
 	//set Boot ROM power-down control to power down
 	reg_write(BOOTROM_PWR_CTRL, reg_read(BOOTROM_PWR_CTRL) | 0x80000000);
@@ -2558,11 +2518,11 @@ int mt_cpu_dormant_init(void)
                         : "=r" (dormant_data[0].poc.l2ectlr), "=r"(dormant_data[0].poc.l2actlr)
                         ::"memory");
                         
-                zlog("dormant init (cluster/cpu:%d/%d), l2ectlr(%lx) l2actlr(%lx)!\n", 
+                CPU_DORMANT_INFO("dormant init (cluster/cpu:%d/%d), l2ectlr(%lx) l2actlr(%lx)!\n", 
                                  clusterid, cpuid, 
                                  dormant_data[0].poc.l2ectlr,
                                  dormant_data[0].poc.l2actlr);
-                zlog("dormant init aee_rec_cpu_dormant: va:%lx pa:%lx\n", 
+                CPU_DORMANT_INFO("dormant init aee_rec_cpu_dormant: va:%lx pa:%lx\n", 
                      sleep_aee_rec_cpu_dormant_va, sleep_aee_rec_cpu_dormant);
         }       
 

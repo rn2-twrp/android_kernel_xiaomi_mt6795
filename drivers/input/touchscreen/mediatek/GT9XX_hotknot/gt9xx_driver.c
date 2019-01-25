@@ -1372,9 +1372,8 @@ static s32 gtp_init_panel(struct i2c_client *client)
 	int TPD_LCM_WIDTH = 0;
 	int TPD_LCM_HEIGHT = 0;
 
-	TPD_LCM_WIDTH = simple_strtoul(CONFIG_LCM_WIDTH, NULL, 0);
-	TPD_LCM_HEIGHT = simple_strtoul(CONFIG_LCM_HEIGHT, NULL, 0);
-
+	TPD_LCM_WIDTH = GTP_MAX_WIDTH;
+	TPD_LCM_HEIGHT = GTP_MAX_HEIGHT;
 
     config[RESOLUTION_LOC]     = (u8)TPD_LCM_WIDTH;
     config[RESOLUTION_LOC + 1] = (u8)(TPD_LCM_WIDTH>>8);

@@ -283,7 +283,7 @@ struct PanelInfoStr{
 void it6121_MIPI_Init(void)
 {
 	#ifndef BUILD_LK
-		printk("[KE/LCM] it6121_MIPI_Init\n");
+		pr_debug("[KE/LCM] it6121_MIPI_Init\n");
 	#else
 		printf("[LK/LCM] it6121_MIPI_Init\n");
 	#endif
@@ -334,10 +334,10 @@ int	it6121_init(void)
 	it6121_i2c_read_byte(MIPI_I2C_ADDR, 0x04, &RevID);
 
 #ifndef BUILD_LK
-	printk("Current MPDevID=%02X%02X\n", DevID[1], DevID[0]);
-	printk("Current MPVenID=%02X%02X\n", VenID[1], VenID[0]);
-	printk("Current MPRevID=%02X\n\n", RevID);
-	printk(" Test 2 MIPI_I2C_ADDR=0x%x\n", MIPI_I2C_ADDR);
+	pr_debug("Current MPDevID=%02X%02X\n", DevID[1], DevID[0]);
+	pr_debug("Current MPVenID=%02X%02X\n", VenID[1], VenID[0]);
+	pr_debug("Current MPRevID=%02X\n\n", RevID);
+	pr_debug(" Test 2 MIPI_I2C_ADDR=0x%x\n", MIPI_I2C_ADDR);
 #endif
 
 	if(VenID[0]==0x54 && VenID[1]==0x49 && DevID[0]==0x21 && DevID[1]==0x61 ){
@@ -401,7 +401,7 @@ static void lcm_power(void)
 	MDELAY(20);
 #else
 
-	printk("[Kernel/LCM] lcm_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_power() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN, GPIO_OUT_ONE);
 	MDELAY(20);
@@ -413,7 +413,7 @@ static void lcm_init(void)
 #ifdef BUILD_LK			
 	printf("[LK/LCM] lcm_init() enter\n");
 #else	
-	printk("[Kernel/LCM] lcm_init() enter\n");	
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");	
 #endif
 
 	it6121_init();
@@ -427,7 +427,7 @@ static void lcm_suspend(void)
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ZERO);
 	MDELAY(20);
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ZERO);
 	MDELAY(20);
@@ -442,7 +442,7 @@ static void lcm_resume(void)
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ONE);
 	MDELAY(20);
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_RST_EN,GPIO_OUT_ONE);
 	MDELAY(20);

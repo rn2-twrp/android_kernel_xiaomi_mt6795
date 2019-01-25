@@ -1302,7 +1302,7 @@ static int mpu6515_init_client(struct i2c_client *client, bool enable)
     }
 
     // Set 125HZ sample rate
-    res = MPU6515_SetSampleRate(client, 125);
+    res = MPU6515_SetSampleRate(client, 200);
     if (res != MPU6515_SUCCESS )
     {
         return res;

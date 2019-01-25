@@ -135,8 +135,8 @@ void eraseAllBlock(struct i2c_client *client);
 void EraseConfigBlock(struct i2c_client *client);
 bool CheckTouchControllerType(struct i2c_client *client);
 
-extern int synaptics_ts_write(struct i2c_client *client, u8 reg, u8 * buf, int len);
-extern int synaptics_ts_read(struct i2c_client *client, u8 reg, int num, u8 *buf);
+/* extern int synaptics_ts_write(struct i2c_client *client, u8 reg, u8 * buf, int len); */
+/* extern int synaptics_ts_read(struct i2c_client *client, u8 reg, int num, u8 *buf); */
 
 
 int FirmwareUpgrade(struct i2c_client *client, const char* fw_path, unsigned long fw_size, unsigned char* fw_start)

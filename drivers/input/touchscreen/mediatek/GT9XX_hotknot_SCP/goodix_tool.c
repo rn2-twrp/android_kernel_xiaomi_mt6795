@@ -306,16 +306,16 @@ s32 init_wr_node(struct i2c_client *client)
     {
         GTP_ERROR("create_proc_entry %s failed", procname);
         return -1;
-    }   
+	}
 #endif
 
-#if 1 // setting by hotknot feature 
+#if 1 /*setting by hotknot feature */
     if (misc_register(&hotknot_misc_device))
     {
-        printk("mtk_tpd: hotknot_device register failed\n");
+		pr_warn("mtk_tpd: hotknot_device register failed\n");
         return FAIL;
     }
-#endif  
+#endif
 
     return SUCCESS;
 }

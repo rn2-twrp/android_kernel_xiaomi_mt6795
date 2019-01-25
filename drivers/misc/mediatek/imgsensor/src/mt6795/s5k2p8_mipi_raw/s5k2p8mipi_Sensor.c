@@ -39,9 +39,8 @@
 #define PFX "S5K2P8_camera_sensor"
 #define LOG_1 LOG_INF("S5K2P8,MIPI 4LANE\n")
 #define LOG_2 LOG_INF("preview 2664*1500@30fps,888Mbps/lane; video 5312*3000@30fps,1390Mbps/lane; capture 16M@30fps,1390Mbps/lane\n")
-//#define LOG_DBG(format, args...) xlog_printk(ANDROID_LOG_DEBUG ,PFX, "[%S] " format, __FUNCTION__, ##args)
-#define LOG_INF(format, args...)	xlog_printk(ANDROID_LOG_INFO   , PFX, "[%s] " format, __FUNCTION__, ##args)
-#define LOGE(format, args...)   xlog_printk(ANDROID_LOG_ERROR, PFX, "[%s] " format, __FUNCTION__, ##args)
+#define LOG_INF(format, args...)	pr_debug(PFX "[%s] " format, __FUNCTION__, ##args)
+#define LOGE(format, args...)   pr_err(PFX "[%s] " format, __FUNCTION__, ##args)
 
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
@@ -289,6 +288,7 @@ static imgsensor_info_struct imgsensor_info = {
 	.i2c_speed = 400, // i2c read/write speed
 };
 
+
 static imgsensor_struct imgsensor = {
 	.mirror = IMAGE_NORMAL,				//mirrorflip information
 	.sensor_mode = IMGSENSOR_MODE_INIT, //IMGSENSOR_MODE enum value,record current sensor mode,such as: INIT, Preview, Capture, Video,High Speed Video, Slim Video
@@ -380,7 +380,7 @@ static void set_max_framerate(UINT16 framerate,kal_bool min_framelength_en)
 	kal_uint32 frame_length = imgsensor.frame_length;
 	//unsigned long flags;
 
-	LOG_INF("framerate = %d, min framelength should enable? \n", framerate,min_framelength_en);
+	LOG_INF("framerate = %d, min framelength should enable = %d\n", framerate,min_framelength_en);
 
 	frame_length = imgsensor.pclk / framerate * 10 / imgsensor.line_length;
 	spin_lock(&imgsensor_drv_lock);
@@ -642,10 +642,10 @@ static void sensor_init(void)
 
     wrtie_eeprom(0x0100, data, size);
     //read_eeprom(0x0000, data2, size);
-    //printk("final data2 ");
+    //LOG_INF("final data2 ");
     //for(j=0;j<size;j++)
-    //	printk(" %d\n",data2[j]);
-    printk("\n");
+    //	LOG_INF(" %d\n",data2[j]);
+    LOG_INF("\n");
 #endif
 
    /*****************************************************************************
@@ -2494,7 +2494,7 @@ static kal_uint32 open(void)
 				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id,sensor_id);
 				break;
 			}
-			LOG_INF("Read sensor id fail, id: 0x%x\n", imgsensor.i2c_write_id,sensor_id);
+			LOG_INF("Read sensor id fail, write id:0x%x id: 0x%x\n", imgsensor.i2c_write_id,sensor_id);
 			retry--;
 		} while(retry > 0);
 		i++;
@@ -2623,7 +2623,7 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	else //PIP capture: 24fps for less than 13M, 20fps for 16M,15fps for 20M
     {
 		if (imgsensor.current_fps != imgsensor_info.cap1.max_framerate)
-			LOG_INF("Warning: current_fps %d fps is not support, so use cap1's setting: %d fps!\n",imgsensor_info.cap1.max_framerate/10);
+			LOG_INF("Warning: current_fps %d fps is not support, so use cap1's setting: %d fps!\n",imgsensor.current_fps,imgsensor_info.cap1.max_framerate/10);
 		imgsensor.pclk = imgsensor_info.cap1.pclk;
 		imgsensor.line_length = imgsensor_info.cap1.linelength;
 		imgsensor.frame_length = imgsensor_info.cap1.framelength;
@@ -3135,7 +3135,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			}
              break;
         case SENSOR_FEATURE_GET_PDAF_INFO:
-            LOG_INF("SENSOR_FEATURE_GET_PDAF_INFO scenarioId:%d\n", *feature_data);
+            LOG_INF("SENSOR_FEATURE_GET_PDAF_INFO scenarioId:%d\n", (UINT32)*feature_data);
             PDAFinfo= (SET_PD_BLOCK_INFO_T *)(uintptr_t)(*(feature_data+1));
 
             switch (*feature_data) {
@@ -3151,7 +3151,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
             }
             break;
         case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
-            LOG_INF("SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%d\n", *feature_data);
+            LOG_INF("SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%d\n", (int)*feature_data);
             //PDAF capacity enable or not, 2p8 only full size support PDAF
             switch (*feature_data) {
                 case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
